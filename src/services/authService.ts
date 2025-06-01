@@ -49,7 +49,7 @@ export async function login(data: any): Promise<any> {
     if (!userDoc.exists) throw new Error('User not found in Firestore');
 
     const userData = userDoc.data() as { password: string; role: string } | undefined;
-    if (!userData) throw new Error('User data is undefined');
+    if (!userData || !userData.password) throw new Error('Password not found in Firestore');
 
     const match = await bcrypt.compare(password, userData.password);
     if (!match) throw new Error('Invalid credentials');
