@@ -28,8 +28,13 @@ redis.set('test_key', 'test_value');
 // Routes
 import authRoutes from './routes/auth';
 import productRoutes from './routes/products';
+import wishlistRoutes from './routes/wishlist';
+import cartRoutes from './routes/cart';
+
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/wishlist', wishlistRoutes);
+app.use('/api/cart', cartRoutes);
 
 import orderRoutes from './routes/orders';
 app.use('/api/orders', orderRoutes);
