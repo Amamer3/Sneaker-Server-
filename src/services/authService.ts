@@ -40,15 +40,30 @@ export async function register(data: any): Promise<any> {
 export async function login(data: any): Promise<any> {
   const { email, password } = data;
   if (!email || !password) throw new Error('All fields required');
-  const userSnap = await usersCollection.where('email', '==', email).get();
-  if (userSnap.empty) throw new Error('Invalid credentials');
-  const userDoc = userSnap.docs[0];
-  const userData = userDoc.data();
-  const match = await bcrypt.compare(password, userData.password);
-  if (!match) throw new Error('Invalid credentials');
-  const token = jwt.sign({ id: userDoc.id, role: userData.role }, process.env.JWT_SECRET!, { expiresIn: '7d' });
-  const { password: _, ...user } = userData;
-  return { token, user: { ...user, id: userDoc.id } };
+
+  try {
+    // Verify user credentials with Firebase Authentication
+    const userRecord = await admin.auth().getUserByEmail(email);
+    const userDoc = await usersCollection.doc(userRecord.uid).get();
+
+    if (!userDoc.exists) throw new Error('User not found in Firestore');
+
+    const userData = userDoc.data() as { password: string; role: string } | undefined;
+    if (!userData) throw new Error('User data is undefined');
+
+    const match = await bcrypt.compare(password, userData.password);
+    if (!match) throw new Error('Invalid credentials');
+
+    const token = jwt.sign({ id: userRecord.uid, role: userData.role }, process.env.JWT_SECRET!, { expiresIn: '7d' });
+    const { password: _, ...user } = userData;
+
+    return { token, user: { ...user, id: userRecord.uid } };
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(error.message || 'Login failed');
+    }
+    throw new Error('An unknown error occurred during login');
+  }
 }
 
 export async function getProfile(userId: string): Promise<User> {
