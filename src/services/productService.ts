@@ -73,3 +73,9 @@ export async function reorderImages(productId: string, imageOrder: { id: string;
   const updated = await docRef.get();
   return updated.data() as Product;
 }
+
+export async function getProduct(id: string): Promise<Product | null> {
+  const doc = await productsCollection.doc(id).get();
+  if (!doc.exists) return null;
+  return doc.data() as Product;
+}
