@@ -22,3 +22,6 @@ dist/
 # Misc
 .DS_Store
 Thumbs.db
+
+# Additional files
+addAdmin.ts
