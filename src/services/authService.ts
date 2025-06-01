@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { firestore } from '../config/firebase';
 import { User } from '../models/User';
+import admin from 'firebase-admin';
 
 const usersCollection = firestore.collection('users');
 
@@ -11,20 +12,29 @@ export async function register(data: any): Promise<any> {
   const userSnap = await usersCollection.where('email', '==', email).get();
   if (!email || !password || !name) throw new Error('All fields required');
   if (!userSnap.empty) throw new Error('Email already registered');
-  const hash = await bcrypt.hash(password, 10);
+
+  // Create user in Firebase Authentication
+  const firebaseUser = await admin.auth().createUser({
+    email,
+    password,
+    displayName: name,
+  });
+
   const now = new Date();
   const user: User = {
-    id: '',
+    id: firebaseUser.uid,
     email,
     name,
     role,
     createdAt: now,
     updatedAt: now,
   };
-  const docRef = await usersCollection.add({ ...user, password: hash });
-  await docRef.update({ id: docRef.id });
-  const token = jwt.sign({ id: docRef.id, role }, process.env.JWT_SECRET!, { expiresIn: '7d' });
-  return { token, user: { ...user, id: docRef.id } };
+
+  // Store user in Firestore
+  await usersCollection.doc(firebaseUser.uid).set(user);
+
+  const token = jwt.sign({ id: firebaseUser.uid, role }, process.env.JWT_SECRET!, { expiresIn: '7d' });
+  return { token, user };
 }
 
 export async function login(data: any): Promise<any> {
