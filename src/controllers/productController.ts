@@ -1,16 +1,38 @@
 import { Request, Response, NextFunction } from 'express';
 import * as productService from '../services/productService';
 import cloudinary from '../config/cloudinary';
+import fs from 'fs/promises';
+import path from 'path';
+
+const handleImageUpload = async (file: Express.Multer.File) => {
+  try {
+    const result = await cloudinary.uploader.upload(file.path, {
+      folder: 'products',
+      transformation: [
+        { width: 800, height: 800, crop: 'limit' },
+        { quality: 'auto', fetch_format: 'auto' }
+      ]
+    });
+    
+    // Clean up the temporary file
+    await fs.unlink(file.path);
+    
+    return result.secure_url;
+  } catch (error) {
+    // Clean up the temporary file even if upload fails
+    await fs.unlink(file.path).catch(() => {});
+    throw error;
+  }
+};
 
 export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
     let images: string[] = [];
+    
     if (req.files && Array.isArray(req.files)) {
-      // Multer array upload
-      for (const file of req.files) {
-        const result = await cloudinary.uploader.upload((file as any).path, { folder: 'products' });
-        images.push(result.secure_url);
-      }
+      // Upload images in parallel
+      const uploadPromises = (req.files as Express.Multer.File[]).map(handleImageUpload);
+      images = await Promise.all(uploadPromises);
     } else if (req.file) { 
       // Multer single upload
       const result = await cloudinary.uploader.upload((req.file as any).path, { folder: 'products' });

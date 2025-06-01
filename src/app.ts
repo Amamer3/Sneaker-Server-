@@ -22,6 +22,14 @@ app.use(helmet());
 app.use(morgan('dev'));
 app.use(express.json());
 
+// Handle double 'api' in URLs
+app.use((req, res, next) => {
+  if (req.url.includes('/api/api/')) {
+    req.url = req.url.replace('/api/api/', '/api/');
+  }
+  next();
+});
+
 // Test Redis connection
 redis.set('test_key', 'test_value');
 
