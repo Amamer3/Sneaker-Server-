@@ -1,7 +1,8 @@
-import { firestore } from '../config/firebase';
 import { Order } from '../models/Order';
+import { FirestoreService } from '../utils/firestore';
+import { COLLECTIONS } from '../constants/collections';
 
-const ordersCollection = firestore.collection('orders');
+const ordersCollection = FirestoreService.collection(COLLECTIONS.ORDERS);
 
 export async function createOrder(order: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
   const now = new Date();

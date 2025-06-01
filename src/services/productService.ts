@@ -1,7 +1,8 @@
-import { firestore } from '../config/firebase';
+import { FirestoreService } from '../utils/firestore';
+import { COLLECTIONS } from '../constants/collections';
 import { Product } from '../models/Product';
 
-const productsCollection = firestore.collection('products');
+const productsCollection = FirestoreService.collection(COLLECTIONS.PRODUCTS);
 
 export async function createProduct(data: any): Promise<Product> {
   const now = new Date();

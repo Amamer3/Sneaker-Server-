@@ -1,8 +1,9 @@
-import { firestore } from '../config/firebase';
+import { FirestoreService } from '../utils/firestore';
+import { COLLECTIONS } from '../constants/collections';
 import { Wishlist } from '../models/Wishlist';
 
 export class WishlistService {
-  private collection = firestore.collection('wishlists');
+  private collection = FirestoreService.collection(COLLECTIONS.WISHLISTS);
 
   async getWishlist(userId: string): Promise<Wishlist | null> {
     const doc = await this.collection.where('userId', '==', userId).limit(1).get();

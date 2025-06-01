@@ -1,7 +1,8 @@
-import { firestore } from '../config/firebase';
 import { Address } from '../models/Order';
+import { FirestoreService } from '../utils/firestore';
+import { COLLECTIONS } from '../constants/collections';
 
-const usersCollection = firestore.collection('users');
+const usersCollection = FirestoreService.collection(COLLECTIONS.USERS);
 
 export async function updateProfile(userId: string, data: any): Promise<void> {
   await usersCollection.doc(userId).update(data);

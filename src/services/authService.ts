@@ -1,10 +1,11 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { firestore } from '../config/firebase';
-import { User } from '../models/User';
 import admin from 'firebase-admin';
+import { User } from '../models/User';
+import { FirestoreService } from '../utils/firestore';
+import { COLLECTIONS } from '../constants/collections';
 
-const usersCollection = firestore.collection('users');
+const usersCollection = FirestoreService.collection(COLLECTIONS.USERS);
 
 export async function register(data: any): Promise<any> {
   const { email, password, name, role = 'customer' } = data;
