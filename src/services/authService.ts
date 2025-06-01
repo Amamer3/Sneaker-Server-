@@ -20,12 +20,14 @@ export async function register(data: any): Promise<any> {
     displayName: name,
   });
 
+  const hash = await bcrypt.hash(password, 10);
   const now = new Date();
   const user: User = {
     id: firebaseUser.uid,
     email,
     name,
     role,
+    password: hash, // Store hashed password in Firestore
     createdAt: now,
     updatedAt: now,
   };

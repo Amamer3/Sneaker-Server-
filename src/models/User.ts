@@ -11,4 +11,5 @@ export interface User {
   };
   createdAt: Date;
   updatedAt: Date;
+  password?: string; // Add optional password field
 }
