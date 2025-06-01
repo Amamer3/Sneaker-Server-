@@ -59,6 +59,7 @@ export async function login(data: any): Promise<any> {
 
     return { token, user: { ...user, id: userRecord.uid } };
   } catch (error) {
+    console.error('Login error:', error);
     if (error instanceof Error) {
       throw new Error(error.message || 'Login failed');
     }
