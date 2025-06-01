@@ -44,3 +44,32 @@ export async function deleteProduct(id: string): Promise<boolean> {
   await productsCollection.doc(id).delete();
   return true;
 }
+
+export async function deleteImage(productId: string, imageId: string): Promise<Product | null> {
+  const docRef = productsCollection.doc(productId);
+  const doc = await docRef.get();
+  if (!doc.exists) return null;
+
+  const product = doc.data() as Product;
+  const updatedImages = product.images.filter(image => image.id !== imageId);
+
+  await docRef.update({ images: updatedImages, updatedAt: new Date() });
+  const updated = await docRef.get();
+  return updated.data() as Product;
+}
+
+export async function reorderImages(productId: string, imageOrder: { id: string; order: number }[]): Promise<Product | null> {
+  const docRef = productsCollection.doc(productId);
+  const doc = await docRef.get();
+  if (!doc.exists) return null;
+
+  const product = doc.data() as Product;
+  const updatedImages = product.images.map(image => {
+    const newOrder = imageOrder.find(order => order.id === image.id)?.order;
+    return newOrder ? { ...image, order: newOrder } : image;
+  });
+
+  await docRef.update({ images: updatedImages, updatedAt: new Date() });
+  const updated = await docRef.get();
+  return updated.data() as Product;
+}

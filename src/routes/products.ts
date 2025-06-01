@@ -1,28 +1,24 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router } from 'express';
 import * as productController from '../controllers/productController';
-import { authenticateJWT, authorizeRoles, AuthRequest } from '../middleware/auth';
+import { authenticateJWT, authorizeRoles } from '../middleware/auth';
 import { upload } from '../middleware/upload';
 
-const router = Router(); 
+const router = Router();
 
-// Public
+// Public Routes
 router.get('/', productController.getAllProducts);
-router.get('/:id', (req, res, next) => { void productController.getProductById(req, res, next); });
+router.get('/:id', productController.getProductById);
 
-// Admin only
-router.post('/', authenticateJWT, authorizeRoles('admin'), upload.array('images', 5), (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
-  productController.createProduct(authReq, res, next);
-});
+// Admin Routes
+router.post('/', authenticateJWT, authorizeRoles('admin'), upload.array('images', 5), productController.createProduct);
+router.put('/:id', authenticateJWT, authorizeRoles('admin'), upload.array('images', 5), productController.updateProduct);
+router.delete('/:id', authenticateJWT, authorizeRoles('admin'), productController.deleteProduct);
+router.patch('/:id/stock', authenticateJWT, authorizeRoles('admin'), productController.updateStock);
+router.patch('/:id/featured', authenticateJWT, authorizeRoles('admin'), productController.toggleFeatured);
 
-router.put('/:id', authenticateJWT, authorizeRoles('admin'), upload.array('images', 5), (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
-  productController.updateProduct(authReq, res, next);
-});
-
-router.delete('/:id', authenticateJWT, authorizeRoles('admin'), (req: Request, res: Response, next: NextFunction) => {
-  const authReq = req as AuthRequest;
-  productController.deleteProduct(authReq, res, next);
-});
+// Product Image Management
+router.post('/:id/images', authenticateJWT, authorizeRoles('admin'), upload.array('images', 5), productController.uploadImages);
+router.delete('/:id/images/:imageId', authenticateJWT, authorizeRoles('admin'), productController.deleteImage);
+router.put('/:id/images/reorder', authenticateJWT, authorizeRoles('admin'), productController.reorderImages);
 
 export default router;
