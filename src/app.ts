@@ -36,18 +36,19 @@ redis.set('test_key', 'test_value');
 // Routes
 import authRoutes from './routes/auth';
 import productRoutes from './routes/products';
+import reviewRoutes from './routes/reviews';
 import wishlistRoutes from './routes/wishlist';
 import cartRoutes from './routes/cart';
+import orderRoutes from './routes/orders';
+import userRoutes from './routes/users';
 
+// Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/products', reviewRoutes); // Mount reviews under products
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/cart', cartRoutes);
-
-import orderRoutes from './routes/orders';
 app.use('/api/orders', orderRoutes);
-
-import userRoutes from './routes/users';
 app.use('/api/users', userRoutes);
 
 // Health check route
@@ -57,7 +58,8 @@ app.get('/', (req, res) => {
 
 // Global error handler
 import { CustomError } from './utils/helpers';
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error(err.stack);
   if (err instanceof CustomError) {
     res.status(err.statusCode).json({ message: err.message });
   } else {

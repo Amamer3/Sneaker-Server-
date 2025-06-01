@@ -1,3 +1,10 @@
+export interface ProductImage {
+  id: string;
+  url: string;
+  order: number;
+  publicId?: string;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -6,11 +13,7 @@ export interface Product {
   price: number;
   category: string;
   sizes: string[];
-  images: {
-    id: string;
-    url: string;
-    order: number;
-  }[]; // Update images to be an array of objects
+  images: ProductImage[];
   inStock: boolean;
   stock: number;
   featured: boolean;

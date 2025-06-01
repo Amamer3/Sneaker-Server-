@@ -1,10 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
 import * as productService from '../services/productService';
 import cloudinary from '../config/cloudinary';
+import { Product } from '../models/Product';
 import fs from 'fs/promises';
-import path from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
-const handleImageUpload = async (file: Express.Multer.File) => {
+interface CloudinaryUploadResult {
+  public_id: string;
+  secure_url: string;
+}
+
+const handleImageUpload = async (file: Express.Multer.File): Promise<CloudinaryUploadResult> => {
   try {
     const result = await cloudinary.uploader.upload(file.path, {
       folder: 'products',
@@ -14,12 +20,12 @@ const handleImageUpload = async (file: Express.Multer.File) => {
       ]
     });
     
-    // Clean up the temporary file
+    // Clean up temporary file
     await fs.unlink(file.path);
     
-    return result.secure_url;
+    return result;
   } catch (error) {
-    // Clean up the temporary file even if upload fails
+    // Clean up temporary file even if upload fails
     await fs.unlink(file.path).catch(() => {});
     throw error;
   }
@@ -27,21 +33,50 @@ const handleImageUpload = async (file: Express.Multer.File) => {
 
 export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    let images: string[] = [];
+    console.log('Creating product with data:', req.body);
+    console.log('Files received:', req.files);
+
+    let images: Product['images'] = [];
     
     if (req.files && Array.isArray(req.files)) {
-      // Upload images in parallel
-      const uploadPromises = (req.files as Express.Multer.File[]).map(handleImageUpload);
+      console.log(`Processing ${req.files.length} images`);
+      
+      const uploadPromises = (req.files as Express.Multer.File[]).map(async (file, index) => {
+        console.log(`Uploading image ${index + 1}:`, file.originalname);
+        const result = await handleImageUpload(file);
+        console.log(`Image ${index + 1} uploaded successfully:`, result.secure_url);
+        
+        return {
+          id: uuidv4(),
+          url: result.secure_url,
+          order: index,
+          publicId: result.public_id
+        };
+      });
+      
       images = await Promise.all(uploadPromises);
-    } else if (req.file) { 
-      // Multer single upload
-      const result = await cloudinary.uploader.upload((req.file as any).path, { folder: 'products' });
-      images = [result.secure_url];
+      console.log('All images processed:', images);
     }
-    const product = await productService.createProduct({ ...req.body, images });
+
+    // Create the product with images
+    const productData = {
+      ...req.body,
+      images,
+      inStock: req.body.stock > 0
+    };
+
+    console.log('Creating product with final data:', productData);
+    const product = await productService.createProduct(productData);
+    console.log('Product created successfully:', product);
+
+    // Force cache invalidation to ensure updated data is returned
+    await productService.invalidateCache();
+
+    // Return the complete product data
     res.status(201).json(product);
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    console.error('Error in createProduct:', error);
+    next(error);
   }
 };
 
@@ -126,51 +161,105 @@ export const toggleFeatured = async (req: Request, res: Response, next: NextFunc
   }
 };
 
-export const uploadImages = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const uploadImages = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    let images: string[] = [];
+    const product = await productService.getProductById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    let newImages: Product['images'] = [];
+    
     if (req.files && Array.isArray(req.files)) {
-      for (const file of req.files) {
-        const result = await cloudinary.uploader.upload((file as any).path, { folder: 'products' });
-        images.push(result.secure_url);
-      }
-    } else if (req.file) {
-      const result = await cloudinary.uploader.upload((req.file as any).path, { folder: 'products' });
-      images = [result.secure_url];
+      const uploadPromises = (req.files as Express.Multer.File[]).map(async (file) => {
+        const result = await handleImageUpload(file);
+        return {
+          id: uuidv4(),
+          url: result.secure_url,
+          order: (product.images?.length || 0) + newImages.length,
+          publicId: result.public_id
+        };
+      });
+      
+      newImages = await Promise.all(uploadPromises);
     }
-    const product = await productService.updateProduct(req.params.id, { images });
-    if (!product) {
-      res.status(404).json({ message: 'Product not found' });
-      return;
+
+    const updatedProduct = await productService.updateProduct(req.params.id, {
+      images: [...(product.images || []), ...newImages]
+    });
+
+    if (!updatedProduct) {
+      return res.status(404).json({ message: 'Failed to update product' });
     }
-    res.json(product);
-  } catch (err) {
-    next(err);
+
+    res.json(updatedProduct);
+  } catch (error) {
+    next(error);
   }
 };
 
-export const deleteImage = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const deleteImage = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const product = await productService.deleteImage(req.params.id, req.params.imageId);
+    const { id: productId, imageId } = req.params;
+    
+    const product = await productService.getProductById(productId);
     if (!product) {
-      res.status(404).json({ message: 'Product not found' });
-      return;
+      return res.status(404).json({ message: 'Product not found' });
     }
-    res.json(product);
-  } catch (err) {
-    next(err);
+
+    const imageToDelete = product.images.find(img => img.id === imageId);
+    if (!imageToDelete) {
+      return res.status(404).json({ message: 'Image not found' });
+    }
+
+    // Delete from Cloudinary if publicId exists
+    if (imageToDelete.publicId) {
+      await cloudinary.uploader.destroy(imageToDelete.publicId);
+    }
+
+    // Remove image and reorder remaining images
+    const updatedImages = product.images
+      .filter(img => img.id !== imageId)
+      .map((img, index) => ({ ...img, order: index }));
+
+    const updatedProduct = await productService.updateProduct(productId, { images: updatedImages });
+    res.json(updatedProduct);
+  } catch (error) {
+    next(error);
   }
 };
 
-export const reorderImages = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const reorderImages = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const product = await productService.reorderImages(req.params.id, req.body.imageOrder);
-    if (!product) {
-      res.status(404).json({ message: 'Product not found' });
-      return;
+    const { id: productId } = req.params;
+    const { imageIds } = req.body;
+
+    if (!Array.isArray(imageIds)) {
+      return res.status(400).json({ message: 'imageIds must be an array' });
     }
-    res.json(product);
-  } catch (err) {
-    next(err);
+
+    const product = await productService.getProductById(productId);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    // Create a map of existing images
+    const imageMap = new Map(product.images.map(img => [img.id, img]));
+
+    // Validate all imageIds exist
+    if (!imageIds.every(id => imageMap.has(id))) {
+      return res.status(400).json({ message: 'Invalid image ID provided' });
+    }
+
+    // Reorder images
+    const updatedImages = imageIds.map((id, index) => ({
+      ...imageMap.get(id)!,
+      order: index
+    }));
+
+    const updatedProduct = await productService.updateProduct(productId, { images: updatedImages });
+    res.json(updatedProduct);
+  } catch (error) {
+    next(error);
   }
 };
