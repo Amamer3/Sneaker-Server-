@@ -11,7 +11,13 @@ const wrapHandler = (handler: (req: any, res: Response, next: NextFunction) => P
 
 // Public Routes
 router.get('/', wrapHandler(productController.getAllProducts));
+router.get('/public/products/filters', wrapHandler(productController.getProductFilters));
+router.get('/featured', wrapHandler(productController.getFeaturedProducts));
 router.get('/:id', wrapHandler(productController.getProductById));
+
+// Product Reviews
+router.get('/:id/reviews', wrapHandler(productController.getProductReviews));
+router.post('/:id/reviews', authenticateJWT, wrapHandler(productController.addProductReview));
 
 // Admin Routes
 router.post('/', 
@@ -32,18 +38,6 @@ router.delete('/:id',
   authenticateJWT, 
   authorizeRoles('admin'), 
   wrapHandler(productController.deleteProduct)
-);
-
-router.patch('/:id/stock', 
-  authenticateJWT, 
-  authorizeRoles('admin'), 
-  wrapHandler(productController.updateStock)
-);
-
-router.patch('/:id/featured', 
-  authenticateJWT, 
-  authorizeRoles('admin'), 
-  wrapHandler(productController.toggleFeatured)
 );
 
 // Product Image Management

@@ -30,6 +30,14 @@ app.use((req, res, next) => {
   next();
 });
 
+// Handle both singular and plural product routes
+app.use((req, res, next) => {
+  if (req.url.startsWith('/api/product/') || req.url.startsWith('/api/product?')) {
+    req.url = req.url.replace('/api/product', '/api/products');
+  }
+  next();
+});
+
 // Test Redis connection
 redis.set('test_key', 'test_value');
 

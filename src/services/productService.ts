@@ -4,6 +4,15 @@ import { Product, ProductImage } from '../models/Product';
 import { cacheKey, getCache, setCache, clearCache } from '../utils/cache';
 import { CollectionReference, Query, DocumentData } from '@google-cloud/firestore';
 
+interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
 const MAX_LIMIT = 50;
 const DEFAULT_LIMIT = 12;
 const productsCollection = FirestoreService.collection(COLLECTIONS.PRODUCTS);
@@ -14,16 +23,32 @@ interface ProductQuery {
   category?: string;
   brand?: string;
   featured?: boolean;
+  inStock?: boolean;
+  status?: string;
   sort?: string;
   search?: string;
+  sortField?: string;
+  sortDirection?: 'asc' | 'desc';
 }
 
-interface PaginatedResponse<T> {
-  items: T[];
-  total: number;
-  page: number;
-  totalPages: number;
-  hasMore: boolean;
+interface ProductFilters {
+  categories: string[];
+  brands: string[];
+  priceRange: {
+    min: number;
+    max: number;
+  };
+  sizes: string[];
+}
+
+interface ProductReview {
+  id: string;
+  userId: string;
+  productId: string;
+  rating: number;
+  comment: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const transformProductData = (doc: FirebaseFirestore.DocumentData): Product => {
@@ -91,121 +116,120 @@ export async function createProduct(data: Partial<Product>): Promise<Product> {
 }
 
 export async function getAllProducts(params: ProductQuery = {}): Promise<PaginatedResponse<Product>> {
-  try {
-    const {
-      page = 1,
-      limit = DEFAULT_LIMIT,
-      category,
-      brand,
-      featured,
-      sort = 'createdAt',
-      search = ''
-    } = params;
+  const {
+    page = 1,
+    limit = DEFAULT_LIMIT,
+    category,
+    brand,
+    featured,
+    inStock,
+    status = 'published',
+    sortField = 'createdAt',
+    sortDirection = 'desc'
+  } = params;
 
-    // Validate and sanitize limit
-    const sanitizedLimit = Math.min(Math.max(1, Number(limit)), MAX_LIMIT);
-    const sanitizedPage = Math.max(1, Number(page));
-    const offset = (sanitizedPage - 1) * sanitizedLimit;
+  // Validate and sanitize limit
+  const sanitizedLimit = Math.min(Math.max(1, Number(limit)), MAX_LIMIT);
+  const sanitizedPage = Math.max(1, Number(page));
+  const offset = (sanitizedPage - 1) * sanitizedLimit;
 
-    // Try to get from cache first
-    const cacheKeyString = cacheKey('products', { 
-      page: sanitizedPage, 
-      limit: sanitizedLimit, 
-      category, 
-      brand, 
-      featured, 
-      sort, 
-      search 
-    });
-    
-    const cached = await getCache<PaginatedResponse<Product>>(cacheKeyString);
-    if (cached) return cached;
+  // Try to get from cache first
+  const cacheKeyString = cacheKey('products', { 
+    page: sanitizedPage, 
+    limit: sanitizedLimit, 
+    category, 
+    brand, 
+    featured, 
+    sortField, 
+    sortDirection 
+  });
+  
+  const cached = await getCache<PaginatedResponse<Product>>(cacheKeyString);
+  if (cached) return cached;
 
-    // Build base query
-    let baseQuery: Query<DocumentData> = productsCollection;
+  // Build base query
+  let baseQuery: Query<DocumentData> = productsCollection;
 
-    // Handle featured products separately to avoid index issues
-    if (featured) {
-      // For featured products, use a simpler query
-      baseQuery = baseQuery.where('featured', '==', true);
-    } else {
-      // Apply filters for non-featured queries
-      if (category) {
-        baseQuery = baseQuery.where('category', '==', category);
-      }
-      if (brand) {
-        baseQuery = baseQuery.where('brand', '==', brand);
-      }
+  // Handle featured products separately to avoid index issues
+  if (featured) {
+    // For featured products, use a simpler query
+    baseQuery = baseQuery.where('featured', '==', true);
+  } else {
+    // Apply filters for non-featured queries
+    if (category) {
+      baseQuery = baseQuery.where('category', '==', category);
     }
-
-    // Get total count first
-    let total: number;
-    try {
-      const totalSnap = await baseQuery.count().get();
-      total = totalSnap.data().count;
-    } catch (error) {
-      console.warn('Count failed, estimating total:', error);
-      const allDocs = await baseQuery.get();
-      total = allDocs.size;
+    if (brand) {
+      baseQuery = baseQuery.where('brand', '==', brand);
     }
-
-    // Build the final query with sorting
-    let finalQuery: Query<DocumentData>;
-    try {
-      switch (sort) {
-        case 'price_asc':
-          finalQuery = baseQuery.orderBy('price', 'asc');
-          break;
-        case 'price_desc':
-          finalQuery = baseQuery.orderBy('price', 'desc');
-          break;
-        case 'newest':
-          finalQuery = baseQuery.orderBy('createdAt', 'desc');
-          break;
-        default:
-          finalQuery = baseQuery.orderBy('createdAt', 'desc');
-      }
-    } catch (error) {
-      console.warn('Sort failed, falling back to default sort:', error);
-      finalQuery = baseQuery.orderBy('createdAt', 'desc');
-    }
-
-    // Apply pagination
-    try {
-      finalQuery = finalQuery.limit(sanitizedLimit).offset(offset);
-    } catch (error) {
-      console.warn('Pagination failed, using simple limit:', error);
-      finalQuery = finalQuery.limit(sanitizedLimit);
-    }
-
-    // Execute query
-    const snapshot = await finalQuery.get();
-    
-    const items = snapshot.docs.map(doc => transformProductData(doc));
-
-    const response: PaginatedResponse<Product> = {
-      items,
-      total,
-      page: sanitizedPage,
-      totalPages: Math.ceil(total / sanitizedLimit),
-      hasMore: offset + items.length < total
-    };
-
-    // Cache the results
-    await setCache(cacheKeyString, response);
-
-    return response;
-  } catch (error) {
-    console.error('Error in getAllProducts:', error);
-    return {
-      items: [],
-      total: 0,
-      page: 1,
-      totalPages: 0,
-      hasMore: false
-    };
   }
+
+  // Get total count first
+  let total: number;
+  try {
+    const totalSnap = await baseQuery.count().get();
+    total = totalSnap.data().count;
+  } catch (error) {
+    console.warn('Count failed, estimating total:', error);
+    const allDocs = await baseQuery.get();
+    total = allDocs.size;
+  }
+
+  // Build the final query with sorting
+  let finalQuery: Query<DocumentData>;
+  try {
+    switch (sortField) {
+      case 'price':
+        finalQuery = baseQuery.orderBy('price', sortDirection);
+        break;
+      case 'newest':
+        finalQuery = baseQuery.orderBy('createdAt', 'desc');
+        break;
+      default:
+        finalQuery = baseQuery.orderBy('createdAt', 'desc');
+    }
+  } catch (error) {
+    console.warn('Sort failed, falling back to default sort:', error);
+    finalQuery = baseQuery.orderBy('createdAt', 'desc');
+  }
+
+  // Apply pagination
+  try {
+    finalQuery = finalQuery.limit(sanitizedLimit).offset(offset);
+  } catch (error) {
+    console.warn('Pagination failed, using simple limit:', error);
+    finalQuery = finalQuery.limit(sanitizedLimit);
+  }
+
+  // Execute query
+  const snapshot = await finalQuery.get();
+  
+  const products = snapshot.docs.map(doc => transformProductData(doc));
+
+  const response: PaginatedResponse<Product> = {
+    items: products,
+    total,
+    page: sanitizedPage,
+    limit: sanitizedLimit,
+    totalPages: Math.ceil(total / sanitizedLimit),
+    hasMore: offset + products.length < total
+  };
+
+  // Cache the results
+  await setCache(cacheKeyString, response);
+  
+  return response;
 }
+
+// For empty results
+const emptyResponse: PaginatedResponse<Product> = {
+  items: [],
+  total: 0,
+  page: 1,
+  limit: DEFAULT_LIMIT,
+  totalPages: 0,
+  hasMore: false
+};
 
 export async function getProductById(id: string): Promise<Product | null> {
   try {
@@ -280,4 +304,74 @@ export async function getProduct(id: string): Promise<Product | null> {
   const doc = await productsCollection.doc(id).get();
   if (!doc.exists) return null;
   return doc.data() as Product;
+}
+
+export async function getProductFilters(): Promise<ProductFilters> {
+  const cacheKeyString = cacheKey('product-filters', {});
+  const cached = await getCache<ProductFilters>(cacheKeyString);
+  
+  if (cached) {
+    return cached;
+  }
+
+  const productsSnap = await productsCollection
+    .where('status', '==', 'published')
+    .get();
+
+  const products = productsSnap.docs.map(doc => doc.data() as Product);
+  
+  const filters: ProductFilters = {
+    categories: Array.from(new Set(products.map((p: Product) => p.category))).filter(Boolean),
+    brands: Array.from(new Set(products.map((p: Product) => p.brand))).filter(Boolean),
+    priceRange: {
+      min: Math.min(...products.map(p => p.price)),
+      max: Math.max(...products.map(p => p.price))
+    },
+    sizes: Array.from(new Set(products.flatMap((p: Product) => p.sizes || []))).filter(Boolean)
+  };
+
+  await setCache(cacheKeyString, filters);  // Using default TTL from cache utility
+
+  return filters;
+}
+
+export async function getProductReviews(productId: string): Promise<ProductReview[]> {
+  try {
+    const reviewsCollection = FirestoreService.collection(COLLECTIONS.REVIEWS);
+    const snapshot = await reviewsCollection
+      .where('productId', '==', productId)
+      .orderBy('createdAt', 'desc')
+      .get();
+
+    return snapshot.docs.map(doc => ({
+      ...doc.data(),
+      id: doc.id,
+      createdAt: doc.data().createdAt.toDate(),
+      updatedAt: doc.data().updatedAt.toDate()
+    })) as ProductReview[];
+  } catch (error) {
+    console.error('Error getting product reviews:', error);
+    return [];
+  }
+}
+
+export async function addProductReview(
+  productId: string,
+  userId: string,
+  data: { rating: number; comment: string }
+): Promise<ProductReview> {
+  const reviewsCollection = FirestoreService.collection(COLLECTIONS.REVIEWS);
+  const now = new Date();
+
+  const review: Omit<ProductReview, 'id'> = {
+    productId,
+    userId,
+    rating: data.rating,
+    comment: data.comment,
+    createdAt: now,
+    updatedAt: now
+  };
+
+  const docRef = await reviewsCollection.add(review);
+  return { ...review, id: docRef.id };
 }

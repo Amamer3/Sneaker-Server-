@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import * as productService from '../services/productService';
 import { CloudinaryService } from '../config/cloudinary';
 import { Product } from '../models/Product';
+import { AuthRequest } from '../middleware/auth';
 import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -290,6 +291,64 @@ export const reorderImages = async (req: Request, res: Response, next: NextFunct
     const updatedProduct = await productService.updateProduct(productId, { images: updatedImages });
     res.json(updatedProduct);
   } catch (error) {
+    next(error);
+  }
+};
+
+export const getProductFilters = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const filters = await productService.getProductFilters();
+    res.json(filters);
+  } catch (error) {
+    console.error('Error getting product filters:', error);
+    next(error);
+  }
+};
+
+export const getFeaturedProducts = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { limit = 6 } = req.query;
+    const products = await productService.getAllProducts({
+      limit: Number(limit),
+      featured: true,
+      inStock: true
+    });
+    res.json(products);
+  } catch (error) {
+    console.error('Error getting featured products:', error);
+    next(error);
+  }
+};
+
+export const getProductReviews = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id: productId } = req.params;
+    const reviews = await productService.getProductReviews(productId);
+    res.json(reviews);
+  } catch (error) {
+    console.error('Error getting product reviews:', error);
+    next(error);
+  }
+};
+
+export const addProductReview = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id: productId } = req.params;
+    const userId = req.user!.id;
+    const { rating, comment } = req.body;
+
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ message: 'Rating must be between 1 and 5' });
+    }
+
+    const review = await productService.addProductReview(productId, userId, {
+      rating,
+      comment
+    });
+
+    res.status(201).json(review);
+  } catch (error) {
+    console.error('Error adding product review:', error);
     next(error);
   }
 };
