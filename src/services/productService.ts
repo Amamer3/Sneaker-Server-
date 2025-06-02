@@ -133,7 +133,7 @@ export async function getAllProducts(params: ProductQuery = {}): Promise<Paginat
   const sanitizedPage = Math.max(1, Number(page));
   const offset = (sanitizedPage - 1) * sanitizedLimit;
 
-  // Try to get from cache first
+  // Generate cache key
   const cacheKeyString = cacheKey('products', { 
     page: sanitizedPage, 
     limit: sanitizedLimit, 
@@ -143,82 +143,79 @@ export async function getAllProducts(params: ProductQuery = {}): Promise<Paginat
     sortField, 
     sortDirection 
   });
-  
+
+  // Try to get from cache first
   const cached = await getCache<PaginatedResponse<Product>>(cacheKeyString);
   if (cached) return cached;
 
-  // Build base query
-  let baseQuery: Query<DocumentData> = productsCollection;
+  try {
+    // Build base query
+    let query: FirebaseFirestore.Query = productsCollection;
 
-  // Handle featured products separately to avoid index issues
-  if (featured) {
-    // For featured products, use a simpler query
-    baseQuery = baseQuery.where('featured', '==', true);
-  } else {
-    // Apply filters for non-featured queries
+    // Add filters one by one
+    if (status) {
+      query = query.where('status', '==', status);
+    }
+
+    if (featured !== undefined) {
+      query = query.where('featured', '==', featured);
+    }
+
+    if (inStock !== undefined) {
+      query = query.where('inStock', '==', inStock);
+    }
+
     if (category) {
-      baseQuery = baseQuery.where('category', '==', category);
+      query = query.where('category', '==', category);
     }
+
     if (brand) {
-      baseQuery = baseQuery.where('brand', '==', brand);
+      query = query.where('brand', '==', brand);
     }
-  }
 
-  // Get total count first
-  let total: number;
-  try {
-    const totalSnap = await baseQuery.count().get();
-    total = totalSnap.data().count;
-  } catch (error) {
-    console.warn('Count failed, estimating total:', error);
-    const allDocs = await baseQuery.get();
-    total = allDocs.size;
-  }
+    // Get total count before applying pagination
+    const countSnapshot = await query.get();
+    const total = countSnapshot.size;
 
-  // Build the final query with sorting
-  let finalQuery: Query<DocumentData>;
-  try {
-    switch (sortField) {
-      case 'price':
-        finalQuery = baseQuery.orderBy('price', sortDirection);
-        break;
-      case 'newest':
-        finalQuery = baseQuery.orderBy('createdAt', 'desc');
-        break;
-      default:
-        finalQuery = baseQuery.orderBy('createdAt', 'desc');
+    // Add sorting
+    // Important: When using compound queries (multiple where clauses),
+    // we need to sort by the fields in the same order as the composite index
+    if (sortField && sortDirection) {
+      query = query.orderBy(sortField, sortDirection);
+      
+      // Always add a secondary sort by id to ensure consistent ordering
+      query = query.orderBy('id', sortDirection);
     }
-  } catch (error) {
-    console.warn('Sort failed, falling back to default sort:', error);
-    finalQuery = baseQuery.orderBy('createdAt', 'desc');
+
+    // Add pagination
+    query = query
+      .offset(offset)
+      .limit(sanitizedLimit);
+
+    const snapshot = await query.get();
+    const products = snapshot.docs.map(doc => transformProductData(doc));
+
+    const response: PaginatedResponse<Product> = {
+      items: products,
+      total,
+      page: sanitizedPage,
+      limit: sanitizedLimit,
+      totalPages: Math.ceil(total / sanitizedLimit),
+      hasMore: offset + products.length < total
+    };
+
+    // Cache the response
+    await setCache(cacheKeyString, response);
+    
+    return response;
+  } catch (error: any) {
+    // Check if the error is due to missing index
+    if (error.code === 9 && error.message.includes('requires an index')) {
+      const indexUrl = error.message.split('create it here: ')[1];
+      throw new Error(`This query requires a composite index. Please create it at: ${indexUrl}`);
+    }
+    throw error;
   }
-
-  // Apply pagination
-  try {
-    finalQuery = finalQuery.limit(sanitizedLimit).offset(offset);
-  } catch (error) {
-    console.warn('Pagination failed, using simple limit:', error);
-    finalQuery = finalQuery.limit(sanitizedLimit);
-  }
-
-  // Execute query
-  const snapshot = await finalQuery.get();
-  
-  const products = snapshot.docs.map(doc => transformProductData(doc));
-
-  const response: PaginatedResponse<Product> = {
-    items: products,
-    total,
-    page: sanitizedPage,
-    limit: sanitizedLimit,
-    totalPages: Math.ceil(total / sanitizedLimit),
-    hasMore: offset + products.length < total
-  };
-
-  // Cache the results
-  await setCache(cacheKeyString, response);
-  
-  return response;
 }
 
 // For empty results
