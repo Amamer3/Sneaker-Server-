@@ -29,6 +29,8 @@ interface ProductQuery {
   search?: string;
   sortField?: string;
   sortDirection?: 'asc' | 'desc';
+  sortBy?: string;        // Add support for frontend's sortBy parameter
+  order?: 'asc' | 'desc'; // Add support for frontend's order parameter
 }
 
 interface ProductFilters {
@@ -124,8 +126,10 @@ export async function getAllProducts(params: ProductQuery = {}): Promise<Paginat
     featured,
     inStock,
     status = 'published',
-    sortField = 'createdAt',
-    sortDirection = 'desc'
+    sortBy,  // Handle sortBy from frontend
+    order,   // Handle order from frontend
+    sortField = sortBy || 'createdAt',
+    sortDirection = order || 'desc'
   } = params;
 
   // Validate and sanitize limit
@@ -153,39 +157,19 @@ export async function getAllProducts(params: ProductQuery = {}): Promise<Paginat
     let query: FirebaseFirestore.Query = productsCollection;
 
     // Add filters one by one
-    if (status) {
-      query = query.where('status', '==', status);
-    }
-
     if (featured !== undefined) {
-      query = query.where('featured', '==', featured);
+      // Convert string 'true'/'false' to boolean if needed
+      const featuredBool = typeof featured === 'string' ? featured === 'true' : featured;
+      query = query.where('featured', '==', featuredBool);
+      console.log('Filtering by featured:', featuredBool);
     }
 
-    if (inStock !== undefined) {
-      query = query.where('inStock', '==', inStock);
-    }
-
-    if (category) {
-      query = query.where('category', '==', category);
-    }
-
-    if (brand) {
-      query = query.where('brand', '==', brand);
-    }
+    // Add sorting
+    query = query.orderBy('createdAt', 'desc');
 
     // Get total count before applying pagination
     const countSnapshot = await query.get();
     const total = countSnapshot.size;
-
-    // Add sorting
-    // Important: When using compound queries (multiple where clauses),
-    // we need to sort by the fields in the same order as the composite index
-    if (sortField && sortDirection) {
-      query = query.orderBy(sortField, sortDirection);
-      
-      // Always add a secondary sort by id to ensure consistent ordering
-      query = query.orderBy('id', sortDirection);
-    }
 
     // Add pagination
     query = query
