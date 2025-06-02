@@ -41,6 +41,11 @@ app.use((req, res, next) => {
 // Test Redis connection
 redis.set('test_key', 'test_value');
 
+// Health check endpoint
+app.get('/', (req, res) => {
+  res.json({ status: 'healthy' });
+});
+
 // Routes
 import authRoutes from './routes/auth';
 import productRoutes from './routes/products';
@@ -54,7 +59,7 @@ import userRoutes from './routes/users';
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/products', reviewRoutes); // Mount reviews under products
-app.use('/api/wishlist', wishlistRoutes);
+app.use('/api/users/wishlist', wishlistRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);

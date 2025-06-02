@@ -126,11 +126,27 @@ export async function getAllProducts(params: ProductQuery = {}): Promise<Paginat
     featured,
     inStock,
     status = 'published',
-    sortBy,  // Handle sortBy from frontend
-    order,   // Handle order from frontend
-    sortField = sortBy || 'createdAt',
-    sortDirection = order || 'desc'
+    sort,        // Handle sort parameter in format "field:direction"
+    sortBy,      // Handle sortBy from frontend
+    order,       // Handle order from frontend
   } = params;
+
+  // Parse sort parameter if provided (format: "field:direction")
+  let sortField = 'createdAt';
+  let sortDirection: 'asc' | 'desc' = 'desc';
+  
+  if (sort) {
+    const [field, direction] = sort.split(':');
+    if (field) sortField = field;
+    if (direction && ['asc', 'desc'].includes(direction.toLowerCase())) {
+      sortDirection = direction.toLowerCase() as 'asc' | 'desc';
+    }
+  } else if (sortBy) {
+    sortField = sortBy;
+    if (order && ['asc', 'desc'].includes(order.toLowerCase())) {
+      sortDirection = order.toLowerCase() as 'asc' | 'desc';
+    }
+  }
 
   // Validate and sanitize limit
   const sanitizedLimit = Math.min(Math.max(1, Number(limit)), MAX_LIMIT);
