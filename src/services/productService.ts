@@ -26,6 +26,37 @@ interface PaginatedResponse<T> {
   hasMore: boolean;
 }
 
+const transformProductData = (doc: FirebaseFirestore.DocumentData): Product => {
+  const data = doc.data();
+  return {
+    ...data,
+    id: doc.id,
+    images: Array.isArray(data.images) ? data.images.map((img: any, index: number) => ({
+      id: img.id || `img-${index}`,
+      url: img.url || img, // Handle both new and old image format
+      order: img.order || index,
+      publicId: img.publicId
+    })) : [],
+    createdAt: data.createdAt?.toDate() || new Date(),
+    updatedAt: data.updatedAt?.toDate() || new Date()
+  };
+};
+
+const baseProductData: Omit<Product, 'id'> = {
+  name: '',
+  brand: '',
+  description: '',
+  price: 0,
+  category: '',
+  sizes: [],
+  images: [],
+  inStock: true,
+  stock: 0,
+  featured: false,
+  createdAt: new Date(),
+  updatedAt: new Date()
+};
+
 export async function invalidateCache(): Promise<void> {
   await clearCache('products:*');
 }
@@ -35,21 +66,16 @@ export async function createProduct(data: Partial<Product>): Promise<Product> {
   
   // Ensure images array is properly structured
   const images = (data.images || []).map((image: ProductImage, index: number) => ({
-    ...image,
-    order: index
+    id: image.id || `img-${index}`,
+    url: image.url,
+    order: image.order || index,
+    publicId: image.publicId
   }));
 
   const product: Omit<Product, 'id'> = {
-    name: data.name || '',
-    brand: data.brand || '',
-    description: data.description || '',
-    price: data.price || 0,
-    category: data.category || '',
-    sizes: data.sizes || [],
+    ...baseProductData,
+    ...data,
     images,
-    inStock: data.inStock ?? true,
-    stock: data.stock || 0,
-    featured: data.featured || false,
     createdAt: now,
     updatedAt: now
   };
@@ -155,10 +181,7 @@ export async function getAllProducts(params: ProductQuery = {}): Promise<Paginat
     // Execute query
     const snapshot = await finalQuery.get();
     
-    const items = snapshot.docs.map(doc => ({
-      ...doc.data(),
-      id: doc.id
-    })) as Product[];
+    const items = snapshot.docs.map(doc => transformProductData(doc));
 
     const response: PaginatedResponse<Product> = {
       items,
@@ -185,9 +208,15 @@ export async function getAllProducts(params: ProductQuery = {}): Promise<Paginat
 }
 
 export async function getProductById(id: string): Promise<Product | null> {
-  const doc = await productsCollection.doc(id).get();
-  if (!doc.exists) return null;
-  return doc.data() as Product;
+  try {
+    const doc = await productsCollection.doc(id).get();
+    if (!doc.exists) return null;
+    
+    return transformProductData(doc);
+  } catch (error) {
+    console.error('Error in getProductById:', error);
+    return null;
+  }
 }
 
 export async function updateProduct(id: string, data: Partial<Product>): Promise<Product | null> {

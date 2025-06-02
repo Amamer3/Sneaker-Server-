@@ -3,6 +3,9 @@ export interface ProductImage {
   url: string;
   order: number;
   publicId?: string;
+  width?: number;
+  height?: number;
+  format?: string;
 }
 
 export interface Product {
