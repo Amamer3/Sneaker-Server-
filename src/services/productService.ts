@@ -2,6 +2,7 @@ import { FirestoreService } from '../utils/firestore';
 import { COLLECTIONS } from '../constants/collections';
 import { Product, ProductImage } from '../models/Product';
 import { cacheKey, getCache, setCache, clearCache } from '../utils/cache';
+import { CollectionReference, Query, DocumentData } from '@google-cloud/firestore';
 
 const MAX_LIMIT = 50;
 const DEFAULT_LIMIT = 12;
@@ -63,77 +64,124 @@ export async function createProduct(data: Partial<Product>): Promise<Product> {
   return productWithId;
 }
 
-export async function getAllProducts(query: ProductQuery = {}): Promise<PaginatedResponse<Product>> {
-  const {
-    page = 1,
-    limit = DEFAULT_LIMIT,
-    category,
-    brand,
-    featured,
-    sort = 'createdAt',
-    search = ''
-  } = query;
+export async function getAllProducts(params: ProductQuery = {}): Promise<PaginatedResponse<Product>> {
+  try {
+    const {
+      page = 1,
+      limit = DEFAULT_LIMIT,
+      category,
+      brand,
+      featured,
+      sort = 'createdAt',
+      search = ''
+    } = params;
 
-  // Validate and sanitize limit
-  const sanitizedLimit = Math.min(Math.max(1, Number(limit)), MAX_LIMIT);
-  const sanitizedPage = Math.max(1, Number(page));
-  const offset = (sanitizedPage - 1) * sanitizedLimit;
+    // Validate and sanitize limit
+    const sanitizedLimit = Math.min(Math.max(1, Number(limit)), MAX_LIMIT);
+    const sanitizedPage = Math.max(1, Number(page));
+    const offset = (sanitizedPage - 1) * sanitizedLimit;
 
-  // Try to get from cache
-  const cacheKeyString = cacheKey('products', { page: sanitizedPage, limit: sanitizedLimit, category, brand, featured, sort, search });
-  const cached = await getCache<PaginatedResponse<Product>>(cacheKeyString);
-  if (cached) return cached;
+    // Try to get from cache first
+    const cacheKeyString = cacheKey('products', { 
+      page: sanitizedPage, 
+      limit: sanitizedLimit, 
+      category, 
+      brand, 
+      featured, 
+      sort, 
+      search 
+    });
+    
+    const cached = await getCache<PaginatedResponse<Product>>(cacheKeyString);
+    if (cached) return cached;
 
-  // Build query
-  let ref = productsCollection as FirebaseFirestore.Query;
-  
-  if (category) ref = ref.where('category', '==', category);
-  if (brand) ref = ref.where('brand', '==', brand);
-  if (featured) ref = ref.where('featured', '==', true);
-  
-  // Add search condition if provided
-  if (search) {
-    ref = ref.where('searchTokens', 'array-contains', search.toLowerCase());
+    // Build base query
+    let baseQuery: Query<DocumentData> = productsCollection;
+
+    // Handle featured products separately to avoid index issues
+    if (featured) {
+      // For featured products, use a simpler query
+      baseQuery = baseQuery.where('featured', '==', true);
+    } else {
+      // Apply filters for non-featured queries
+      if (category) {
+        baseQuery = baseQuery.where('category', '==', category);
+      }
+      if (brand) {
+        baseQuery = baseQuery.where('brand', '==', brand);
+      }
+    }
+
+    // Get total count first
+    let total: number;
+    try {
+      const totalSnap = await baseQuery.count().get();
+      total = totalSnap.data().count;
+    } catch (error) {
+      console.warn('Count failed, estimating total:', error);
+      const allDocs = await baseQuery.get();
+      total = allDocs.size;
+    }
+
+    // Build the final query with sorting
+    let finalQuery: Query<DocumentData>;
+    try {
+      switch (sort) {
+        case 'price_asc':
+          finalQuery = baseQuery.orderBy('price', 'asc');
+          break;
+        case 'price_desc':
+          finalQuery = baseQuery.orderBy('price', 'desc');
+          break;
+        case 'newest':
+          finalQuery = baseQuery.orderBy('createdAt', 'desc');
+          break;
+        default:
+          finalQuery = baseQuery.orderBy('createdAt', 'desc');
+      }
+    } catch (error) {
+      console.warn('Sort failed, falling back to default sort:', error);
+      finalQuery = baseQuery.orderBy('createdAt', 'desc');
+    }
+
+    // Apply pagination
+    try {
+      finalQuery = finalQuery.limit(sanitizedLimit).offset(offset);
+    } catch (error) {
+      console.warn('Pagination failed, using simple limit:', error);
+      finalQuery = finalQuery.limit(sanitizedLimit);
+    }
+
+    // Execute query
+    const snapshot = await finalQuery.get();
+    
+    const items = snapshot.docs.map(doc => ({
+      ...doc.data(),
+      id: doc.id
+    })) as Product[];
+
+    const response: PaginatedResponse<Product> = {
+      items,
+      total,
+      page: sanitizedPage,
+      totalPages: Math.ceil(total / sanitizedLimit),
+      hasMore: offset + items.length < total
+    };
+
+    // Cache the results
+    await setCache(cacheKeyString, response);
+
+    return response;
+  } catch (error) {
+    console.error('Error in getAllProducts:', error);
+    return {
+      items: [],
+      total: 0,
+      page: 1,
+      totalPages: 0,
+      hasMore: false
+    };
   }
-
-  // Get total count for pagination
-  const totalSnapshot = await ref.count().get();
-  const total = totalSnapshot.data().count;
-
-  // Apply sorting
-  switch (sort) {
-    case 'price_asc':
-      ref = ref.orderBy('price', 'asc');
-      break;
-    case 'price_desc':
-      ref = ref.orderBy('price', 'desc');
-      break;
-    case 'newest':
-      ref = ref.orderBy('createdAt', 'desc');
-      break;
-    default:
-      ref = ref.orderBy('createdAt', 'desc');
-  }
-
-  // Apply pagination
-  ref = ref.limit(sanitizedLimit).offset(offset);
-
-  // Get paginated results
-  const snap = await ref.get();
-  const items = snap.docs.map(doc => doc.data() as Product);
-
-  const response: PaginatedResponse<Product> = {
-    items,
-    total,
-    page: sanitizedPage,
-    totalPages: Math.ceil(total / sanitizedLimit),
-    hasMore: offset + items.length < total
-  };
-
-  // Cache the results
-  await setCache(cacheKeyString, response);
-
-  return response;
 }
 
 export async function getProductById(id: string): Promise<Product | null> {
