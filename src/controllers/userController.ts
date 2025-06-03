@@ -72,8 +72,20 @@ export const deleteAddress = async (req: AuthRequest, res: Response, next: NextF
 // Admin
 export const getAllUsers = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const users = await userService.getAllUsers();
-    res.json(users);
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const search = (req.query.search as string) || '';
+
+    const { users, total } = await userService.getAllUsers(page, limit, search);
+    
+    res.json({
+      items: users,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      hasMore: page * limit < total
+    });
   } catch (err) {
     next(err);
   }

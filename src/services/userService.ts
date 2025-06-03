@@ -2,7 +2,9 @@ import { Address } from '../models/Order';
 import { FirestoreService } from '../utils/firestore';
 import { COLLECTIONS } from '../constants/collections';
 
-const usersCollection = FirestoreService.collection(COLLECTIONS.USERS);
+import { DocumentData, Query, CollectionReference } from '@google-cloud/firestore';
+
+const usersCollection = FirestoreService.collection(COLLECTIONS.USERS) as CollectionReference<DocumentData>;
 
 export async function updateProfile(userId: string, data: any): Promise<void> {
   await usersCollection.doc(userId).update(data);
@@ -32,9 +34,42 @@ export async function getAddresses(userId: string): Promise<Address[]> {
   return snapshot.docs.map(doc => ({ ...doc.data() } as Address));
 }
 
-export async function getAllUsers(): Promise<any[]> {
-  const snapshot = await usersCollection.get();
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+interface GetAllUsersResult {
+  users: any[];
+  total: number;
+}
+
+export async function getAllUsers(page: number = 1, limit: number = 10, search: string = ''): Promise<GetAllUsersResult> {
+  let query: Query<DocumentData> = usersCollection;
+
+  // Add search if provided
+  if (search) {
+    query = query.where('name', '>=', search)
+                 .where('name', '<=', search + '\uf8ff');
+  }
+
+  // Get total count
+  const totalSnapshot = await query.count().get();
+  const total = totalSnapshot.data().count;
+
+  // Get paginated results
+  const offset = (page - 1) * limit;
+  const snapshot = await query
+    .orderBy('name')
+    .limit(limit)
+    .offset(offset)
+    .get();
+
+  const users = snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data(),
+    password: undefined // Remove password from response
+  }));
+
+  return {
+    users,
+    total
+  };
 }
 
 export async function deleteUser(userId: string): Promise<void> {
