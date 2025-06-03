@@ -9,16 +9,7 @@ const router = Router();
 router.get('/me', authenticateJWT, (req, res, next) => { void userController.getProfile(req, res, next); });
 router.put('/me', authenticateJWT, (req, res, next) => { void userController.updateProfile(req, res, next); });
 
-// Wishlist
-router.get('/wishlist', authenticateJWT, (req: Request, res: Response) => { 
-  void wishlistController.getUserWishlist(req as AuthRequest, res);
-});
-router.post('/wishlist', authenticateJWT, (req: Request, res: Response) => { 
-  void wishlistController.addToWishlist(req as AuthRequest, res);
-});
-router.delete('/wishlist/:productId', authenticateJWT, (req: Request, res: Response) => { 
-  void wishlistController.removeFromWishlist(req as AuthRequest, res);
-});
+// Wishlist routes moved to dedicated wishlist router
 
 // Address management
 router.get('/me/addresses', authenticateJWT, (req, res, next) => { void userController.getAddresses(req, res, next); });
