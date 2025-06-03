@@ -3,11 +3,18 @@
 ## API Endpoints
 
 ### Authentication Routes
+
+#### Customer Authentication
 - **POST** `/api/auth/register`: Register a new user.
 - **POST** `/api/auth/login`: Log in a user.
 - **POST** `/api/auth/logout`: Log out a user.
 - **GET** `/api/auth/profile`: Get the profile of the logged-in user.
-- **POST** `/api/auth/admin/login` : Admin login (Admin only)
+
+#### Admin Authentication & Management
+- **POST** `/api/auth/admin/login`: Admin login (Admin only).
+- **POST** `/api/auth/admin/register`: Create a new admin user (Admin only).
+- **GET** `/api/users`: Get all users with pagination and search (Admin only).
+- **DELETE** `/api/users/:id`: Delete a user (Admin only).
 
 ### Product Routes
 - **GET** `/api/products`: Get all products.
@@ -62,11 +69,29 @@
 - **POST** `/api/orders`: Create a new order.
 - **PUT** `/api/orders/:id/status`: Update the status of an order (Admin only).
 
-### User Routes
-- **GET** `/api/users`: Get all users (Admin only).
-- **GET** `/api/users/:id`: Get a user by ID.
-- **PUT** `/api/users/:id`: Update a user by ID.
-- **DELETE** `/api/users/:id`: Delete a user by ID (Admin only).
+### User Management Routes
+
+#### Profile Management
+- **GET** `/api/users/me`: Get current user's profile
+- **PUT** `/api/users/me`: Update current user's profile
+
+#### Address Management
+- **GET** `/api/users/me/addresses`: Get user's addresses
+- **POST** `/api/users/me/addresses`: Add new address
+- **PUT** `/api/users/me/addresses/:addressId`: Update address
+- **DELETE** `/api/users/me/addresses/:addressId`: Delete address
+
+#### Wishlist Management
+- **GET** `/api/users/wishlist`: Get user's wishlist
+- **POST** `/api/users/wishlist`: Add product to wishlist (send productId in body)
+- **DELETE** `/api/users/wishlist/:productId`: Remove product from wishlist
+
+#### Admin User Management (Admin Only)
+- **GET** `/api/users`: Get all users with pagination and search
+  - Query params: page (default: 1), limit (default: 10), search (optional)
+- **GET** `/api/users/:id`: Get user details
+- **PUT** `/api/users/:id`: Update user details
+- **DELETE** `/api/users/:id`: Delete user account
 
 ## Setup Instructions
 1. Clone the repository.

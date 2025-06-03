@@ -32,4 +32,15 @@ router.get('/profile', authenticateJWT, (req: Request, res: Response, next: Next
   void authController.profile(authReq, res, next);
 });
 
+// Register new admin (requires admin authentication)
+router.post('/admin/register', 
+  authenticateJWT, 
+  registerValidation, 
+  validate, 
+  (req: Request, res: Response, next: NextFunction) => {
+    const authReq = req as AuthRequest;
+    authController.createAdmin(authReq, res, next);
+  }
+);
+
 export default router;

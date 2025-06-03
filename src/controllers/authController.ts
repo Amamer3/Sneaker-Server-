@@ -55,3 +55,39 @@ export const adminLogin = async (req: AuthRequest, res: Response, next: NextFunc
     next(err);
   }
 };
+
+// Create admin user (only existing admins can do this)
+export const createAdmin = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (req.user?.role !== 'admin') {
+      res.status(403).json({ message: 'Forbidden: Only admins can create other admins' });
+      return;
+    }
+
+    const { email, password, name } = req.body;
+    
+    if (!email || !password || !name) {
+      res.status(400).json({ message: 'Email, password and name are required' });
+      return;
+    }
+
+    const user = await authService.register({
+      email,
+      password,
+      name,
+      role: 'admin'
+    });
+
+    res.status(201).json({
+      message: 'Admin user created successfully',
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
