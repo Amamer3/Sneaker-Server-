@@ -68,6 +68,7 @@ import cartRoutes from './routes/cart';
 import orderRoutes from './routes/orders';
 import userRoutes from './routes/users';
 import analyticsRoutes from './routes/analytics';
+import systemRoutes from './routes/system';
 
 // Mount routes
 app.use('/api/auth', authRoutes);
@@ -78,6 +79,7 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api', systemRoutes);
 
 // Health check route
 app.get('/', (req, res) => {

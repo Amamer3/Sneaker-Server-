@@ -5,7 +5,10 @@ export const COLLECTIONS = {
   CARTS: 'carts',
   ORDERS: 'orders',
   REVIEWS: 'reviews',
-  CATEGORIES: 'categories'
+  CATEGORIES: 'categories',
+  METRICS: 'metrics',
+  LOGS: 'logs',
+  ALERTS: 'alerts'
 } as const;
 
 export const SUB_COLLECTIONS = {
