@@ -68,30 +68,39 @@ export class AnalyticsService {
     return stats;
   }
 
-  async getRevenueStats(timeframe: TimeFrame): Promise<RevenueStats> {
-    const cacheKeyStr = cacheKey('analytics-revenue', { timeframe });
+  async getRevenueStats(timeframe: TimeFrame, startDate?: Date, endDate?: Date): Promise<RevenueStats> {
+    const cacheKeyStr = cacheKey('analytics-revenue', { timeframe, startDate, endDate });
     const cached = await getCache<RevenueStats>(cacheKeyStr);
     if (cached) return cached;
 
-    const { startDate, endDate } = this.getDateRangeForTimeframe(timeframe);
-    const previousStartDate = this.getPreviousPeriodStartDate(startDate, timeframe);
+    let dateRange;
+    if (startDate && endDate) {
+      dateRange = { startDate, endDate };
+    } else {
+      dateRange = this.getDateRangeForTimeframe(timeframe);
+    }
+
+    const { startDate: start, endDate: end } = dateRange;
+    const previousStartDate = startDate ? 
+      new Date(start.getTime() - (end.getTime() - start.getTime())) : 
+      this.getPreviousPeriodStartDate(start, timeframe);
 
     const orders = await this.ordersCollection
       .where('createdAt', '>=', previousStartDate)
-      .where('createdAt', '<=', endDate)
+      .where('createdAt', '<=', end)
       .get();
 
     const currentPeriodData = this.aggregateRevenueData(
-      orders.docs.filter(doc => doc.data().createdAt >= startDate),
+      orders.docs.filter(doc => doc.data().createdAt >= start),
       timeframe
     );
 
     const previousPeriodRevenue = this.calculateTotalRevenueFromOrders(
-      orders.docs.filter(doc => doc.data().createdAt < startDate)
+      orders.docs.filter(doc => doc.data().createdAt < start)
     );
 
     const stats: RevenueStats = {
-      timeframe,
+      timeframe: startDate ? 'custom' : timeframe,
       data: currentPeriodData,
       comparison: {
         previousPeriod: previousPeriodRevenue,

@@ -19,7 +19,10 @@ export const getOverviewStats = async (req: Request, res: Response) => {
 export const getRevenueStats = async (req: Request, res: Response) => {
   try {
     const timeframe = (req.query.timeframe as TimeFrame) || 'monthly';
-    const stats = await analyticsService.getRevenueStats(timeframe);
+    const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
+    const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
+    
+    const stats = await analyticsService.getRevenueStats(timeframe, startDate, endDate);
     res.json(stats);
   } catch (error) {
     console.error('Error getting revenue stats:', error);

@@ -103,8 +103,15 @@ All analytics endpoints are protected with admin authentication and rate limitin
 
 #### Revenue Analytics
 - **GET** `/api/analytics/revenue`: Get revenue statistics and trends
-  - Query params: timeframe (daily|weekly|monthly|yearly, default: monthly)
+  - Query params:
+    - `timeframe`: (hourly|daily|weekly|monthly|quarterly|yearly, default: monthly)
+    - `granularity`: (hour|day|week|month) - must be finer than timeframe
+    - `startDate`: (YYYY-MM-DD) - optional custom start date
+    - `endDate`: (YYYY-MM-DD) - optional custom end date
+    - `includeTotal`: (true|false) - include period totals
+    - `compareWithPrevious`: (true|false) - include comparison with previous period
   - Returns revenue data points and comparison with previous period
+  - Cache TTL: 30 minutes with 5 minutes stale-while-revalidate
 
 #### Order Analytics
 - **GET** `/api/analytics/orders`: Get order statistics

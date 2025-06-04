@@ -127,4 +127,18 @@ export interface CustomerStats {
 }
 
 /** Time frame options for analytics queries */
-export type TimeFrame = 'daily' | 'weekly' | 'monthly' | 'yearly';
+export type TimeFrame = 'hourly' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+
+/** Aggregation level for data points */
+export type Granularity = 'hour' | 'day' | 'week' | 'month';
+
+/** Common analytics parameters */
+export interface AnalyticsParams {
+  timeframe: TimeFrame;
+  startDate?: Date;
+  endDate?: Date;
+  granularity?: Granularity;
+  limit?: number;
+  includeTotal?: boolean;
+  compareWithPrevious?: boolean;
+}
