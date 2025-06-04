@@ -146,7 +146,7 @@ All analytics endpoints are protected with admin authentication and rate limitin
     - No rate limiting applied
 
 #### Metrics (Admin Only)
-- **GET** `/api/metrics`: Get system metrics
+- **GET** `/api/metrics`: Get current system metrics
   - Returns:
     - CPU usage
     - Memory usage
@@ -155,6 +155,37 @@ All analytics endpoints are protected with admin authentication and rate limitin
     - Error rates
     - Admin authentication required
     - Cache TTL: 60 seconds
+
+- **GET** `/api/metrics/historical`: Get historical metrics
+  - Query params:
+    - `startTime`: ISO timestamp
+    - `endTime`: ISO timestamp
+    - `interval`: (hour|day|week)
+  - Returns: Array of metrics for the specified time range
+  - Admin authentication required
+
+#### Logs (Admin Only)
+- **GET** `/api/logs`: Get system logs
+  - Query params:
+    - `limit`: Number of logs to return (default: 100)
+    - `offset`: Pagination offset (default: 0)
+  - Returns: Array of log entries with timestamp, level, and message
+  - Admin authentication required
+
+#### Alerts (Admin Only)
+- **GET** `/api/alerts/thresholds`: Get alert thresholds
+  - Returns current threshold settings for:
+    - CPU usage
+    - Memory usage
+    - Requests per minute
+    - Error rate
+    - Response time
+  - Admin authentication required
+
+- **POST** `/api/alerts/thresholds`: Update alert thresholds
+  - Body: Partial threshold settings to update
+  - Returns: Updated threshold settings
+  - Admin authentication required
 
 ## Setup Instructions
 1. Clone the repository.
