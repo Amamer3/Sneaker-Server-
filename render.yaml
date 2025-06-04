@@ -1,0 +1,50 @@
+services:
+  - type: web
+    name: sneakers-backend
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 18.16.0
+      - key: NODE_ENV
+        value: production
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=2048
+      - key: LOG_LEVEL
+        value: info
+      - key: ANALYTICS_CACHE_TTL
+        value: "300"
+      - key: ANALYTICS_MAX_BATCH_SIZE
+        value: "1000"
+      # Add your secret environment variables in the Render dashboard
+      - key: JWT_SECRET
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+    disk:
+      name: logs
+      mountPath: /app/logs
+      sizeGB: 1
+    healthCheck:
+      path: /api/health
+      port: 3000
+      interval: 30s
+      timeout: 10s
+      gracePeriod: 300s
+    autoDeploy: true
+    numInstances:
+      min: 1
+      max: 3
+      targetCPUPercent: 70
+    metrics:
+      - port: 3000
+        path: /api/metrics

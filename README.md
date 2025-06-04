@@ -132,6 +132,30 @@ All analytics endpoints are protected with admin authentication and rate limitin
   - Query params: limit (default: 10, max: 100)
   - Returns new vs returning ratio, growth trends, and top customers
 
+### System Routes
+
+#### Health Check
+- **GET** `/api/health`: Get system health status
+  - Returns:
+    - Overall system status (healthy|degraded|unhealthy)
+    - Service status (Redis, Firestore)
+    - Memory usage
+    - Uptime
+    - No authentication required
+    - Response Time: < 500ms
+    - No rate limiting applied
+
+#### Metrics (Admin Only)
+- **GET** `/api/metrics`: Get system metrics
+  - Returns:
+    - CPU usage
+    - Memory usage
+    - Request rates
+    - Response times
+    - Error rates
+    - Admin authentication required
+    - Cache TTL: 60 seconds
+
 ## Setup Instructions
 1. Clone the repository.
 2. Install dependencies using `npm install`.

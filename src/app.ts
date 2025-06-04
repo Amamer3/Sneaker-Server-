@@ -13,13 +13,23 @@ import './config/cloudinary';
 
 // Initialize Redis client
 import redis from './config/redis';
+import Logger from './utils/logger';
+import { HealthCheck } from './utils/healthCheck';
+import { FirestoreService } from './utils/firestore';
 
 const app = express();
+
+// Initialize health checker
+const healthChecker = new HealthCheck(redis, FirestoreService);
 
 // Middleware
 app.use(cors());
 app.use(helmet());
-app.use(morgan('dev'));
+app.use(morgan('combined', {
+  stream: {
+    write: (message) => Logger.http(message.trim())
+  }
+}));
 app.use(express.json());
 
 // Handle double 'api' in URLs
@@ -42,8 +52,11 @@ app.use((req, res, next) => {
 redis.set('test_key', 'test_value');
 
 // Health check endpoint
+app.get('/api/health', healthChecker.middleware);
+
+// Basic root endpoint
 app.get('/', (req, res) => {
-  res.json({ status: 'healthy' });
+  res.json({ message: 'Sneakers Store API' });
 });
 
 // Routes
