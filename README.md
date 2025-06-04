@@ -93,6 +93,38 @@
 - **PUT** `/api/users/:id`: Update user details
 - **DELETE** `/api/users/:id`: Delete user account
 
+### Analytics Routes (Admin Only)
+
+All analytics endpoints are protected with admin authentication and rate limiting (100 requests per 15 minutes).
+
+#### Overview Analytics
+- **GET** `/api/analytics/overview`: Get overall store statistics
+  - Returns total revenue, orders, customers, and today's metrics with percentage changes
+
+#### Revenue Analytics
+- **GET** `/api/analytics/revenue`: Get revenue statistics and trends
+  - Query params: timeframe (daily|weekly|monthly|yearly, default: monthly)
+  - Returns revenue data points and comparison with previous period
+
+#### Order Analytics
+- **GET** `/api/analytics/orders`: Get order statistics
+  - Returns status distribution, average order value, and order trends
+
+#### Product Analytics
+- **GET** `/api/analytics/products`: Get comprehensive product statistics
+  - Query params: limit (default: 10, max: 100)
+  - Returns top products, low stock items, and category distribution
+- **GET** `/api/analytics/products/top-selling`: Get top-selling products
+  - Query params: limit (default: 10, max: 100)
+- **GET** `/api/analytics/products/low-stock`: Get products with low stock
+  - Query params: limit (default: 10, max: 100)
+- **GET** `/api/analytics/products/by-category`: Get product distribution by category
+
+#### Customer Analytics
+- **GET** `/api/analytics/customers`: Get customer statistics and insights
+  - Query params: limit (default: 10, max: 100)
+  - Returns new vs returning ratio, growth trends, and top customers
+
 ## Setup Instructions
 1. Clone the repository.
 2. Install dependencies using `npm install`.
