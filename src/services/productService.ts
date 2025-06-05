@@ -245,14 +245,44 @@ export async function updateProduct(id: string, data: Partial<Product>): Promise
   const doc = await docRef.get();
   if (!doc.exists) return null;
   
-  const updateData = {
+  // Create update data object without undefined values
+  const baseData = {
     ...data,
-    updatedAt: new Date(),
-    // Generate search tokens for text search
-    searchTokens: data.name ? 
-      data.name.toLowerCase().split(' ').filter(token => token.length > 2) : 
-      undefined
+    updatedAt: new Date()
   };
+
+  // Only add searchTokens if name is being updated
+  if (data.name) {
+    const nameTokens = data.name.toLowerCase().split(' ');
+    const brandTokens = data.brand ? [data.brand.toLowerCase()] : [];
+    const categoryTokens = data.category ? [data.category.toLowerCase()] : [];
+    
+    const tokens = new Set([
+      ...nameTokens,
+      ...brandTokens,
+      ...categoryTokens,
+      // Add word combinations
+      data.name.toLowerCase(),
+      // Add partial matches
+      ...nameTokens.flatMap(word => {
+        const partials = [];
+        for (let i = 1; i <= word.length; i++) {
+          partials.push(word.substring(0, i));
+        }
+        return partials;
+      })
+    ]);
+
+    baseData.searchTokens = Array.from(tokens);
+  }
+
+  // Filter out any undefined values to prevent Firestore errors
+  const updateData = Object.entries(baseData).reduce((acc, [key, value]) => {
+    if (value !== undefined) {
+      acc[key] = value;
+    }
+    return acc;
+  }, {} as Record<string, any>);
   
   await docRef.update(updateData);
   
