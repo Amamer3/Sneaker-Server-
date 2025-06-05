@@ -56,14 +56,19 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
     }
 
     // Create the product with images
+    // Set default values and convert types appropriately
+    const stock = req.body.stock ? Number(req.body.stock) : 0;
     const productData = {
       ...req.body,
       price: Number(req.body.price),
-      stock: Number(req.body.stock),
+      stock: stock,
       sizes: Array.isArray(req.body.sizes) ? req.body.sizes : (req.body.sizes ? JSON.parse(req.body.sizes) : []),
       images,
-      inStock: Number(req.body.stock) > 0,
-      featured: req.body.featured === 'true'
+      inStock: req.body.inStock === true || req.body.inStock === 'true',
+      featured: req.body.featured === true || req.body.featured === 'true',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      searchTokens: generateSearchTokens(req.body.name, req.body.brand, req.body.category)
     };
 
     console.log('Creating product with final data:', productData);
@@ -352,3 +357,26 @@ export const addProductReview = async (req: AuthRequest, res: Response, next: Ne
     next(error);
   }
 };
+
+// Helper function to generate search tokens
+function generateSearchTokens(name: string, brand: string, category: string): string[] {
+  const tokens = new Set<string>();
+  
+  // Add full strings
+  tokens.add(name.toLowerCase());
+  tokens.add(brand.toLowerCase());
+  tokens.add(category.toLowerCase());
+  
+  // Add word tokens
+  const words = `${name} ${brand} ${category}`.toLowerCase().split(/\s+/);
+  words.forEach(word => tokens.add(word));
+  
+  // Add partial matches (ngrams)
+  words.forEach(word => {
+    for (let i = 1; i <= word.length; i++) {
+      tokens.add(word.substring(0, i));
+    }
+  });
+  
+  return Array.from(tokens);
+}

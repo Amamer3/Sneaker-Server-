@@ -22,4 +22,5 @@ export interface Product {
   featured: boolean;
   createdAt: Date;
   updatedAt: Date;
+  searchTokens?: string[];
 }
