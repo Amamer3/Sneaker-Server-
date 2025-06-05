@@ -60,7 +60,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       ...req.body,
       price: Number(req.body.price),
       stock: Number(req.body.stock),
-      sizes: req.body.sizes ? JSON.parse(req.body.sizes) : [],
+      sizes: Array.isArray(req.body.sizes) ? req.body.sizes : (req.body.sizes ? JSON.parse(req.body.sizes) : []),
       images,
       inStock: Number(req.body.stock) > 0,
       featured: req.body.featured === 'true'
