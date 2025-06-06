@@ -68,6 +68,7 @@ import cartRoutes from './routes/cart';
 import orderRoutes from './routes/orders';
 import userRoutes from './routes/users';
 import analyticsRoutes from './routes/analytics';
+import dashboardRoutes from './routes/dashboard';
 import deliveryRoutes from './routes/delivery';
 import currencyRoutes from './routes/currency';
 
@@ -80,6 +81,7 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/admin/dashboard', dashboardRoutes);
 app.use('/api', deliveryRoutes);
 app.use('/api/exchange-rates', currencyRoutes);
 
