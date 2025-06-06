@@ -21,7 +21,7 @@ const CACHE_TTL = 3600; // 1 hour
  * @apiQuery {String} [base=USD] Base currency code (3 letters)
  * @apiQuery {String} [currencies] Comma-separated list of currency codes
  */
-router.get('/exchange-rates', 
+router.get('/', 
   validateQuery(ExchangeRateQuerySchema) as any,
   async (req: Request<{}, {}, {}, ExchangeRateQuery>, res: Response): Promise<void> => {
     try {
@@ -99,7 +99,7 @@ router.get('/exchange-rates',
  * @apiGroup Currency
  * @apiDescription Get exchange rates in a simplified format with USD and GHS
  */
-router.get('/simple', async (req: Request, res: Response): Promise<void> => {
+router.get('/simple', async (_req: Request, res: Response): Promise<void> => {
   try {
     // Try to get from cache first
     const cacheKey = 'exchange_rates:simple';
@@ -138,20 +138,11 @@ router.get('/simple', async (req: Request, res: Response): Promise<void> => {
     if (isAxiosError && (error as any).isAxiosError) {
       const axiosError = error as any;
       const statusCode = axiosError.response?.status || 500;
-      const errorResponse: CurrencyError = {
+      res.status(statusCode).json({
         message: 'Error fetching exchange rates',
         error: axiosError.message || 'Network error',
-        status: statusCode,
-        code: axiosError.code || 'UNKNOWN'
-      };
-
-      if (statusCode === 400) {
-        errorResponse.message = 'Invalid currency code';
-      } else if (statusCode === 429) {
-        errorResponse.message = 'Rate limit exceeded';
-      }
-
-      res.status(statusCode).json(errorResponse);
+        status: statusCode
+      });
     } else {
       res.status(500).json({ 
         message: 'Error fetching exchange rates',
