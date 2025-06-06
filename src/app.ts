@@ -85,7 +85,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin/dashboard', dashboardRoutes);
-app.use('/api', deliveryRoutes);
+app.use('/api/delivery', deliveryRoutes);
 app.use('/api/exchange-rates', currencyRoutes);
 
 // Health check route

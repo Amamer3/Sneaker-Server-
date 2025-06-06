@@ -4,13 +4,10 @@ import * as deliveryController from '../controllers/deliveryController';
 
 const router = Router();
 
-// Apply authentication to all delivery routes
-router.use(authenticateJWT);
-
-// Get delivery options
+// Public route - no authentication needed
 router.get('/delivery-options', deliveryController.getDeliveryOptions);
 
-// Validate delivery address
-router.post('/validate-delivery-address', deliveryController.validateDeliveryAddress);
+// Protected route - requires authentication
+router.post('/validate-delivery-address', authenticateJWT, deliveryController.validateDeliveryAddress);
 
 export default router;
