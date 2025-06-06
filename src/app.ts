@@ -19,6 +19,9 @@ import { FirestoreService } from './utils/firestore';
 
 const app = express();
 
+// Trust proxy - required when behind a reverse proxy like Render
+app.set('trust proxy', 1);
+
 // Initialize health checker
 const healthChecker = new HealthCheck(redis, FirestoreService);
 
