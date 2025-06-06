@@ -1,4 +1,6 @@
+import { Redis } from 'ioredis';
 import redis from '../config/redis';
+import logger from './logger';
 
 const CACHE_TTL = 60 * 5; // 5 minutes
 
@@ -14,17 +16,38 @@ export const cacheKey = (prefix: string, params: Record<string, any>): string =>
 };
 
 export const getCache = async <T>(key: string): Promise<T | null> => {
-  const data = await redis.get(key);
-  return data ? JSON.parse(data) : null;
+  try {
+    const data = await redis.get(key);
+    return data ? JSON.parse(data) : null;
+  } catch (error) {
+    logger.error(`Cache get error for key ${key}:`, error);
+    return null;
+  }
 };
 
-export const setCache = async (key: string, data: any): Promise<void> => {
-  await redis.setex(key, CACHE_TTL, JSON.stringify(data));
+export const setCache = async (
+  key: string,
+  data: any,
+  ttl: number = CACHE_TTL
+): Promise<boolean> => {
+  try {
+    await redis.setex(key, ttl, JSON.stringify(data));
+    return true;
+  } catch (error) {
+    logger.error(`Cache set error for key ${key}:`, error);
+    return false;
+  }
 };
 
-export const clearCache = async (pattern: string): Promise<void> => {
-  const keys = await redis.keys(pattern);
-  if (keys.length) {
-    await redis.del(keys);
+export const clearCache = async (pattern: string): Promise<boolean> => {
+  try {
+    const keys = await redis.keys(pattern);
+    if (keys.length) {
+      await redis.del(keys);
+    }
+    return true;
+  } catch (error) {
+    logger.error(`Cache clear error for pattern ${pattern}:`, error);
+    return false;
   }
 };
