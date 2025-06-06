@@ -9,502 +9,592 @@ import {
   CustomerStats,
   TimeFrame
 } from '../types/analytics';
+import Logger from '../utils/logger';
 
-// Cache TTL for different metric types (in seconds)
-const CACHE_TTL = {
-  OVERVIEW: 300,    // 5 minutes
-  REVENUE: 1800,    // 30 minutes
-  ORDERS: 900,      // 15 minutes
-  PRODUCTS: 3600,   // 1 hour
-  CUSTOMERS: 3600   // 1 hour
+const DEFAULT_STATS: OverviewStats = {
+  totalRevenue: 0,
+  totalOrders: 0,
+  totalCustomers: 0,
+  todayRevenue: 0,
+  todayOrders: 0,
+  todayNewCustomers: 0,
+  percentageChanges: {
+    revenue: 0,
+    orders: 0,
+    customers: 0
+  }
 };
 
 export class AnalyticsService {
-  private ordersCollection = FirestoreService.collection(COLLECTIONS.ORDERS);
-  private productsCollection = FirestoreService.collection(COLLECTIONS.PRODUCTS);
-  private usersCollection = FirestoreService.collection(COLLECTIONS.USERS);
+  private ordersCollection;
+  private productsCollection;
+  private usersCollection;
+
+  constructor() {
+    this.ordersCollection = FirestoreService.collection(COLLECTIONS.ORDERS);
+    this.productsCollection = FirestoreService.collection(COLLECTIONS.PRODUCTS);
+    this.usersCollection = FirestoreService.collection(COLLECTIONS.USERS);
+  }
 
   async getOverviewStats(): Promise<OverviewStats> {
-    const cacheKeyStr = cacheKey('analytics-overview', {});
-    const cached = await getCache<OverviewStats>(cacheKeyStr);
-    if (cached) return cached;
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const [
-      totalRevenue,
-      totalOrders,
-      totalCustomers,
-      todayRevenue,
-      todayOrders,
-      todayNewCustomers
-    ] = await Promise.all([
-      this.calculateTotalRevenue(),
-      this.calculateTotalOrders(),
-      this.calculateTotalCustomers(),
-      this.calculateTodayRevenue(),
-      this.calculateTodayOrders(),
-      this.calculateTodayNewCustomers()
-    ]);
-
-    const yesterdayStats = await this.getYesterdayStats();
-
-    const stats: OverviewStats = {
-      totalRevenue,
-      totalOrders,
-      totalCustomers,
-      todayRevenue,
-      todayOrders,
-      todayNewCustomers,
-      percentageChanges: {
-        revenue: this.calculatePercentageChange(todayRevenue, yesterdayStats.revenue),
-        orders: this.calculatePercentageChange(todayOrders, yesterdayStats.orders),
-        customers: this.calculatePercentageChange(todayNewCustomers, yesterdayStats.newCustomers)
+    try {
+      const cacheKeyStr = cacheKey('analytics-overview', {});
+      const cached = await getCache<OverviewStats>(cacheKeyStr);
+      if (cached) {
+        Logger.debug('Using cached overview stats');
+        return cached;
       }
-    };
 
-    await setCache(cacheKeyStr, stats);
-    return stats;
-  }
+      Logger.debug('Calculating fresh overview stats');
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-  async getRevenueStats(timeframe: TimeFrame, startDate?: Date, endDate?: Date): Promise<RevenueStats> {
-    const cacheKeyStr = cacheKey('analytics-revenue', { timeframe, startDate, endDate });
-    const cached = await getCache<RevenueStats>(cacheKeyStr);
-    if (cached) return cached;
+      let stats: OverviewStats;
+      try {
+        const [
+          totalRevenue,
+          totalOrders,
+          totalCustomers,
+          todayRevenue,
+          todayOrders,
+          todayNewCustomers,
+          yesterdayStats
+        ] = await Promise.all([
+          this.calculateTotalRevenue(),
+          this.calculateTotalOrders(),
+          this.calculateTotalCustomers(),
+          this.calculateTodayRevenue(),
+          this.calculateTodayOrders(),
+          this.calculateTodayNewCustomers(),
+          this.getYesterdayStats()
+        ]);
 
-    let dateRange;
-    if (startDate && endDate) {
-      dateRange = { startDate, endDate };
-    } else {
-      dateRange = this.getDateRangeForTimeframe(timeframe);
+        stats = {
+          totalRevenue,
+          totalOrders,
+          totalCustomers,
+          todayRevenue,
+          todayOrders,
+          todayNewCustomers,
+          percentageChanges: {
+            revenue: this.calculatePercentageChange(todayRevenue, yesterdayStats.revenue),
+            orders: this.calculatePercentageChange(todayOrders, yesterdayStats.orders),
+            customers: this.calculatePercentageChange(todayNewCustomers, yesterdayStats.newCustomers)
+          }
+        };
+      } catch (error) {
+        Logger.error('Error calculating overview stats:', error);
+        stats = { ...DEFAULT_STATS }; // Return default stats on error
+      }
+
+      await setCache(cacheKeyStr, stats).catch(err => 
+        Logger.error('Failed to cache overview stats:', err)
+      );
+      return stats;
+    } catch (error) {
+      Logger.error('Critical error in getOverviewStats:', error);
+      return { ...DEFAULT_STATS };
     }
-
-    const { startDate: start, endDate: end } = dateRange;
-    const previousStartDate = startDate ? 
-      new Date(start.getTime() - (end.getTime() - start.getTime())) : 
-      this.getPreviousPeriodStartDate(start, timeframe);
-
-    const orders = await this.ordersCollection
-      .where('createdAt', '>=', previousStartDate)
-      .where('createdAt', '<=', end)
-      .get();
-
-    const currentPeriodData = this.aggregateRevenueData(
-      orders.docs.filter(doc => doc.data().createdAt >= start),
-      timeframe
-    );
-
-    const previousPeriodRevenue = this.calculateTotalRevenueFromOrders(
-      orders.docs.filter(doc => doc.data().createdAt < start)
-    );
-
-    const stats: RevenueStats = {
-      timeframe: startDate ? 'custom' : timeframe,
-      data: currentPeriodData,
-      comparison: {
-        previousPeriod: previousPeriodRevenue,
-        percentageChange: this.calculatePercentageChange(
-          this.calculateTotalRevenueFromData(currentPeriodData),
-          previousPeriodRevenue
-        )
-      }
-    };
-
-    await setCache(cacheKeyStr, stats);
-    return stats;
   }
 
-  async getOrderStats(): Promise<OrderStats> {
-    const cacheKeyStr = cacheKey('analytics-orders', {});
-    const cached = await getCache<OrderStats>(cacheKeyStr);
-    if (cached) return cached;
-
-    const orders = await this.ordersCollection.get();
-
-    const orderDocs = orders.docs;
-    const statusDistribution: { [key: string]: number } = {};
-    let totalValue = 0;
-
-    orderDocs.forEach(doc => {
-      const data = doc.data();
-      statusDistribution[data.status] = (statusDistribution[data.status] || 0) + 1;
-      totalValue += data.total;
-    });
-
-    const stats: OrderStats = {
-      statusDistribution,
-      averageOrderValue: totalValue / (orderDocs.length || 1),
-      orderTrends: this.aggregateOrderTrends(orderDocs, 'daily')
-    };
-
-    await setCache(cacheKeyStr, stats);
-    return stats;
-  }
-
-  async getProductStats(limit: number = 10): Promise<ProductStats> {
-    const cacheKeyStr = cacheKey('analytics-products', { limit });
-    const cached = await getCache<ProductStats>(cacheKeyStr);
-    if (cached) return cached;
-
-    const [products, orders] = await Promise.all([
-      this.productsCollection.get(),
-      this.ordersCollection.get()
-    ]);
-
-    const productSales: { [key: string]: { sales: number; revenue: number } } = {};
-    orders.docs.forEach(doc => {
-      const order = doc.data();
-      order.items.forEach((item: any) => {
-        if (!productSales[item.productId]) {
-          productSales[item.productId] = { sales: 0, revenue: 0 };
-        }
-        productSales[item.productId].sales += item.quantity;
-        productSales[item.productId].revenue += item.price * item.quantity;
-      });
-    });
-
-    const categoryDistribution: { [key: string]: number } = {};
-    const productMap = new Map();
-
-    products.docs.forEach(doc => {
-      const product = doc.data();
-      productMap.set(doc.id, product);
-      categoryDistribution[product.category] = (categoryDistribution[product.category] || 0) + 1;
-    });
-
-    const stats: ProductStats = {
-      topProducts: await this.getTopSellingProducts(limit),
-      lowStock: await this.getLowStockProducts(limit),
-      categoryDistribution: await this.getProductCategoryDistribution()
-    };
-
-    await setCache(cacheKeyStr, stats);
-    return stats;
-  }
-
-  async getCustomerStats(limit: number = 10): Promise<CustomerStats> {
-    const cacheKeyStr = cacheKey('analytics-customers', { limit });
-    const cached = await getCache<CustomerStats>(cacheKeyStr);
-    if (cached) return cached;
-
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const [users, orders] = await Promise.all([
-      this.usersCollection.get(),
-      this.ordersCollection.where('createdAt', '>=', thirtyDaysAgo).get()
-    ]);
-
-    const newCustomers = users.docs.filter(doc => doc.data().createdAt >= thirtyDaysAgo).length;
-    const returningCustomers = users.docs.length - newCustomers;
-
-    const customerOrders = new Map<string, { totalSpent: number; orderCount: number }>();
-    orders.docs.forEach(doc => {
-      const order = doc.data();
-      if (!customerOrders.has(order.userId)) {
-        customerOrders.set(order.userId, { totalSpent: 0, orderCount: 0 });
-      }
-      const customer = customerOrders.get(order.userId)!;
-      customer.totalSpent += order.total;
-      customer.orderCount += 1;
-    });
-
-    const stats: CustomerStats = {
-      newVsReturning: {
-        new: newCustomers,
-        returning: returningCustomers
-      },
-      growth: {
-        rate: this.calculateGrowthRate(users.docs),
-        trend: this.calculateCustomerGrowthTrend(users.docs)
-      },
-      topCustomers: await this.getTopCustomers(customerOrders)
-    };
-
-    await setCache(cacheKeyStr, stats);
-    return stats;
-  }
-
-  // Private helper methods
   private async calculateTotalRevenue(): Promise<number> {
-    const orders = await this.ordersCollection.get();
-    return orders.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0);
+    try {
+      const orders = await this.ordersCollection.get();
+      return orders.docs.reduce((sum, doc) => {
+        const data = doc.data();
+        return sum + (data.total || 0);
+      }, 0);
+    } catch (error) {
+      Logger.error('Error calculating total revenue:', error);
+      return 0;
+    }
   }
 
   private async calculateTotalOrders(): Promise<number> {
-    const snapshot = await this.ordersCollection.count().get();
-    return snapshot.data().count;
+    try {
+      const snapshot = await this.ordersCollection.count().get();
+      return snapshot.data().count;
+    } catch (error) {
+      Logger.error('Error calculating total orders:', error);
+      return 0;
+    }
   }
 
   private async calculateTotalCustomers(): Promise<number> {
-    const snapshot = await this.usersCollection.count().get();
-    return snapshot.data().count;
+    try {
+      const snapshot = await this.usersCollection.count().get();
+      return snapshot.data().count;
+    } catch (error) {
+      Logger.error('Error calculating total customers:', error);
+      return 0;
+    }
   }
 
   private async calculateTodayRevenue(): Promise<number> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const orders = await this.ordersCollection.where('createdAt', '>=', today).get();
-    return orders.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0);
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const orders = await this.ordersCollection.where('createdAt', '>=', today).get();
+      return orders.docs.reduce((sum, doc) => {
+        const data = doc.data();
+        return sum + (data.total || 0);
+      }, 0);
+    } catch (error) {
+      Logger.error('Error calculating today revenue:', error);
+      return 0;
+    }
   }
 
   private async calculateTodayOrders(): Promise<number> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const orders = await this.ordersCollection.where('createdAt', '>=', today).get();
-    return orders.docs.length;
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const orders = await this.ordersCollection.where('createdAt', '>=', today).get();
+      return orders.docs.length;
+    } catch (error) {
+      Logger.error('Error calculating today orders:', error);
+      return 0;
+    }
   }
 
   private async calculateTodayNewCustomers(): Promise<number> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const users = await this.usersCollection.where('createdAt', '>=', today).get();
-    return users.docs.length;
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const users = await this.usersCollection.where('createdAt', '>=', today).get();
+      return users.docs.length;
+    } catch (error) {
+      Logger.error('Error calculating today new customers:', error);
+      return 0;
+    }
+  }
+
+  private async getYesterdayStats() {
+    try {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      yesterday.setHours(0, 0, 0, 0);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const [orders, users] = await Promise.all([
+        this.ordersCollection
+          .where('createdAt', '>=', yesterday)
+          .where('createdAt', '<', today)
+          .get(),
+        this.usersCollection
+          .where('createdAt', '>=', yesterday)
+          .where('createdAt', '<', today)
+          .get()
+      ]);
+
+      return {
+        revenue: orders.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0),
+        orders: orders.docs.length,
+        newCustomers: users.docs.length
+      };
+    } catch (error) {
+      Logger.error('Error getting yesterday stats:', error);
+      return {
+        revenue: 0,
+        orders: 0,
+        newCustomers: 0
+      };
+    }
   }
 
   private calculatePercentageChange(current: number, previous: number): number {
     if (previous === 0) return current === 0 ? 0 : 100;
     return ((current - previous) / previous) * 100;
   }
-
-  private getDateRangeForTimeframe(timeframe: TimeFrame): { startDate: Date; endDate: Date } {
-    const endDate = new Date();
-    const startDate = new Date();
-
-    switch (timeframe) {
-      case 'daily':
-        startDate.setDate(startDate.getDate() - 30);
-        break;
-      case 'weekly':
-        startDate.setDate(startDate.getDate() - 90);
-        break;
-      case 'monthly':
-        startDate.setMonth(startDate.getMonth() - 12);
-        break;
-      case 'yearly':
-        startDate.setFullYear(startDate.getFullYear() - 5);
-        break;
-    }
-
-    return { startDate, endDate };
-  }
-
-  private getPreviousPeriodStartDate(startDate: Date, timeframe: TimeFrame): Date {
-    const previousStartDate = new Date(startDate);
-    
-    switch (timeframe) {
-      case 'daily':
-        previousStartDate.setDate(previousStartDate.getDate() - 30);
-        break;
-      case 'weekly':
-        previousStartDate.setDate(previousStartDate.getDate() - 90);
-        break;
-      case 'monthly':
-        previousStartDate.setMonth(previousStartDate.getMonth() - 12);
-        break;
-      case 'yearly':
-        previousStartDate.setFullYear(previousStartDate.getFullYear() - 5);
-        break;
-    }
-
-    return previousStartDate;
-  }
-
-  private aggregateRevenueData(docs: FirebaseFirestore.QueryDocumentSnapshot[], timeframe: TimeFrame) {
-    const data: { [key: string]: { revenue: number; orderCount: number } } = {};
-
-    docs.forEach(doc => {
-      const orderData = doc.data();
-      const date = this.formatDateByTimeframe(orderData.createdAt.toDate(), timeframe);
-      
-      if (!data[date]) {
-        data[date] = { revenue: 0, orderCount: 0 };
+  async getProductStats(limit: number = 10): Promise<ProductStats> {
+    try {
+      const cacheKeyStr = cacheKey('analytics-products', { limit });
+      const cached = await getCache<ProductStats>(cacheKeyStr);
+      if (cached) {
+        Logger.debug('Using cached product stats');
+        return cached;
       }
+
+      Logger.debug('Calculating fresh product stats');
       
-      data[date].revenue += orderData.total || 0;
-      data[date].orderCount += 1;
-    });
+      // Get top products by sales
+      const productsSnapshot = await this.productsCollection
+        .orderBy('totalSales', 'desc')
+        .limit(limit)
+        .get();
 
-    return Object.entries(data).map(([date, values]) => ({
-      date,
-      revenue: values.revenue,
-      orderCount: values.orderCount
-    }));
+      const topProducts = productsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        name: doc.data().name,
+        sales: doc.data().totalSales || 0,
+        revenue: doc.data().totalRevenue || 0
+      }));
+
+      // Get products with low stock
+      const lowStockSnapshot = await this.productsCollection
+        .where('stock', '<', 10)  // Define low stock as less than 10 items
+        .get();
+
+      const lowStock = lowStockSnapshot.docs.map(doc => ({
+        id: doc.id,
+        name: doc.data().name,
+        stock: doc.data().stock || 0
+      }));
+
+      // Get category distribution
+      const allProductsSnapshot = await this.productsCollection.get();
+      const categoryDistribution: { [category: string]: number } = {};
+      allProductsSnapshot.docs.forEach(doc => {
+        const category = doc.data().category;
+        if (category) {
+          categoryDistribution[category] = (categoryDistribution[category] || 0) + 1;
+        }
+      });
+
+      const stats: ProductStats = {
+        topProducts,
+        lowStock,
+        categoryDistribution,
+        totalProducts: allProductsSnapshot.size
+      };
+
+      await setCache(cacheKeyStr, stats, 3600); // Cache for 1 hour
+      return stats;
+    } catch (error) {
+      Logger.error('Error getting product stats:', error);
+      return {
+        topProducts: [],
+        lowStock: [],
+        categoryDistribution: {},
+        totalProducts: 0
+      };
+    }
   }
+  async getOrderStats(): Promise<OrderStats> {
+    try {
+      const cacheKeyStr = cacheKey('analytics-orders', {});
+      const cached = await getCache<OrderStats>(cacheKeyStr);
+      if (cached) {
+        Logger.debug('Using cached order stats');
+        return cached;
+      }
 
-  private formatDateByTimeframe(date: Date, timeframe: TimeFrame): string {
-    switch (timeframe) {
-      case 'daily':
-        return date.toISOString().split('T')[0];
-      case 'weekly':
-        const weekStart = new Date(date);
-        weekStart.setDate(date.getDate() - date.getDay());
-        return weekStart.toISOString().split('T')[0];
-      case 'monthly':
-        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      case 'yearly':
-        return date.getFullYear().toString();
-      default:
-        return date.toISOString();
+      Logger.debug('Calculating fresh order stats');
+      const ordersSnapshot = await this.ordersCollection.get();
+      
+      // Calculate status distribution
+      const statusDistribution: { [key: string]: number } = {};
+      let totalValue = 0;
+      const ordersByDate: { [date: string]: number } = {};
+
+      ordersSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        // Status distribution
+        const status = data.status;
+        statusDistribution[status] = (statusDistribution[status] || 0) + 1;
+
+        // Calculate total value for average
+        const orderValue = data.totalAmount || 0;
+        totalValue += orderValue;
+
+        // Group orders by date for trends
+        const orderDate = new Date(data.createdAt.toDate()).toISOString().split('T')[0];
+        ordersByDate[orderDate] = (ordersByDate[orderDate] || 0) + 1;
+      });
+
+      // Calculate average order value
+      const averageOrderValue = ordersSnapshot.size > 0 
+        ? totalValue / ordersSnapshot.size 
+        : 0;
+
+      // Create order trends array (last 30 days)
+      const orderTrends = [];
+      const today = new Date();
+      for (let i = 29; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        orderTrends.push({
+          date: dateStr,
+          count: ordersByDate[dateStr] || 0
+        });
+      }
+
+      const stats: OrderStats = {
+        statusDistribution,
+        averageOrderValue,
+        orderTrends,
+        totalOrders: ordersSnapshot.size
+      };
+
+      await setCache(cacheKeyStr, stats, 900); // Cache for 15 minutes
+      return stats;
+    } catch (error) {
+      Logger.error('Error getting order stats:', error);
+      return {
+        statusDistribution: {},
+        averageOrderValue: 0,
+        orderTrends: [],
+        totalOrders: 0
+      };
+    }
+  }
+  async getRevenueStats(timeframe: TimeFrame, startDate?: Date, endDate?: Date): Promise<RevenueStats> {
+    try {
+      const cacheKeyStr = cacheKey('analytics-revenue', { timeframe, startDate, endDate });
+      const cached = await getCache<RevenueStats>(cacheKeyStr);
+      if (cached) {
+        Logger.debug('Using cached revenue stats');
+        return cached;
+      }
+
+      Logger.debug('Calculating fresh revenue stats');
+      
+      // Set default end date to now and start date based on timeframe
+      const end = endDate || new Date();
+      let start = startDate;
+      if (!start) {
+        start = new Date(end);
+        switch(timeframe) {
+          case 'daily':
+            start.setDate(start.getDate() - 30); // Last 30 days
+            break;
+          case 'weekly':
+            start.setDate(start.getDate() - 90); // Last ~13 weeks
+            break;
+          case 'monthly':
+            start.setMonth(start.getMonth() - 12); // Last 12 months
+            break;
+          case 'quarterly':
+            start.setMonth(start.getMonth() - 15); // Last 5 quarters
+            break;
+          case 'yearly':
+            start.setFullYear(start.getFullYear() - 5); // Last 5 years
+            break;
+          default:
+            start.setDate(start.getDate() - 30); // Default to last 30 days
+        }
+      }
+
+      const ordersSnapshot = await this.ordersCollection
+        .where('createdAt', '>=', start)
+        .where('createdAt', '<=', end)
+        .get();
+
+      // Group data by time periods
+      const dataByPeriod: { [key: string]: { revenue: number; orderCount: number } } = {};
+      ordersSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const date = data.createdAt.toDate();
+        let periodKey: string;
+
+        switch(timeframe) {
+          case 'hourly':
+            periodKey = date.toISOString().slice(0, 13); // YYYY-MM-DDTHH
+            break;
+          case 'daily':
+            periodKey = date.toISOString().slice(0, 10); // YYYY-MM-DD
+            break;
+          case 'weekly':
+            const weekStart = new Date(date);
+            weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+            periodKey = weekStart.toISOString().slice(0, 10);
+            break;
+          case 'monthly':
+            periodKey = date.toISOString().slice(0, 7); // YYYY-MM
+            break;
+          case 'quarterly':
+            const quarter = Math.floor(date.getMonth() / 3) + 1;
+            periodKey = `${date.getFullYear()}-Q${quarter}`;
+            break;
+          case 'yearly':
+            periodKey = date.getFullYear().toString();
+            break;
+          default:
+            periodKey = date.toISOString().slice(0, 10);
+        }
+
+        if (!dataByPeriod[periodKey]) {
+          dataByPeriod[periodKey] = { revenue: 0, orderCount: 0 };
+        }
+        dataByPeriod[periodKey].revenue += data.totalAmount || 0;
+        dataByPeriod[periodKey].orderCount++;
+      });
+
+      // Convert to sorted array
+      const data = Object.entries(dataByPeriod)
+        .map(([date, stats]) => ({
+          date,
+          revenue: stats.revenue,
+          orderCount: stats.orderCount
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      // Calculate comparison with previous period
+      const totalRevenue = data.reduce((sum, point) => sum + point.revenue, 0);
+      const previousPeriodStart = new Date(start);
+      const periodDuration = end.getTime() - start.getTime();
+      previousPeriodStart.setTime(start.getTime() - periodDuration);
+
+      const previousPeriodSnapshot = await this.ordersCollection
+        .where('createdAt', '>=', previousPeriodStart)
+        .where('createdAt', '<', start)
+        .get();
+
+      const previousPeriodRevenue = previousPeriodSnapshot.docs.reduce(
+        (sum, doc) => sum + (doc.data().totalAmount || 0),
+        0
+      );
+
+      const percentageChange = previousPeriodRevenue !== 0
+        ? ((totalRevenue - previousPeriodRevenue) / previousPeriodRevenue) * 100
+        : 0;
+
+      const stats: RevenueStats = {
+        timeframe,
+        data,
+        comparison: {
+          previousPeriod: previousPeriodRevenue,
+          percentageChange
+        }
+      };
+
+      await setCache(cacheKeyStr, stats, 1800); // Cache for 30 minutes
+      return stats;
+    } catch (error) {
+      Logger.error('Error getting revenue stats:', error);
+      return {
+        timeframe,
+        data: [],
+        comparison: {
+          previousPeriod: 0,
+          percentageChange: 0
+        }
+      };
     }
   }
 
-  private calculateTotalRevenueFromOrders(docs: FirebaseFirestore.QueryDocumentSnapshot[]): number {
-    return docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0);
-  }
+  async getCustomerStats(limit: number = 10): Promise<CustomerStats> {
+    try {
+      const cacheKeyStr = cacheKey('analytics-customers', { limit });
+      const cached = await getCache<CustomerStats>(cacheKeyStr);
+      if (cached) {
+        Logger.debug('Using cached customer stats');
+        return cached;
+      }
 
-  private calculateTotalRevenueFromData(data: Array<{ revenue: number }>): number {
-    return data.reduce((sum, item) => sum + item.revenue, 0);
-  }
+      Logger.debug('Calculating fresh customer stats');
 
-  private aggregateOrderTrends(
-    docs: FirebaseFirestore.QueryDocumentSnapshot[],
-    timeframe: TimeFrame
-  ) {
-    const trends: { [key: string]: number } = {};
-
-    docs.forEach(doc => {
-      const date = this.formatDateByTimeframe(doc.data().createdAt.toDate(), timeframe);
-      trends[date] = (trends[date] || 0) + 1;
-    });
-
-    return Object.entries(trends).map(([date, count]) => ({ date, count }));
-  }
-
-  private getTopSellingProducts(limit: number) {
-    return this.productsCollection
-      .orderBy('sales', 'desc')
-      .limit(limit)
-      .get()
-      .then(snapshot => {
-        const products: ProductStats['topProducts'] = [];
-        snapshot.docs.forEach(doc => {
-          const data = doc.data();
-          products.push({
-            id: doc.id,
-            name: data.name,
-            sales: data.sales,
-            revenue: data.revenue
-          });
-        });
-        return products;
-      });
-  }
-
-  private getLowStockProducts(limit: number) {
-    return this.productsCollection
-      .where('stock', '<', 10)
-      .limit(limit)
-      .get()
-      .then(snapshot => {
-        const products: ProductStats['lowStock'] = [];
-        snapshot.docs.forEach(doc => {
-          const data = doc.data();
-          products.push({
-            id: doc.id,
-            name: data.name,
-            stock: data.stock
-          });
-        });
-        return products;
-      });
-  }
-
-  private getProductCategoryDistribution() {
-    return this.productsCollection
-      .get()
-      .then(snapshot => {
-        const distribution: { [key: string]: number } = {};
-        snapshot.docs.forEach(doc => {
-          const data = doc.data();
-          distribution[data.category] = (distribution[data.category] || 0) + 1;
-        });
-        return distribution;
-      });
-  }
-
-  private calculateGrowthRate(docs: FirebaseFirestore.QueryDocumentSnapshot[]): number {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    const sixtyDaysAgo = new Date();
-    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-
-    const currentPeriodCustomers = docs.filter(doc => 
-      doc.data().createdAt >= thirtyDaysAgo
-    ).length;
-
-    const previousPeriodCustomers = docs.filter(doc => 
-      doc.data().createdAt >= sixtyDaysAgo && doc.data().createdAt < thirtyDaysAgo
-    ).length;
-
-    return this.calculatePercentageChange(currentPeriodCustomers, previousPeriodCustomers);
-  }
-
-  private calculateCustomerGrowthTrend(docs: FirebaseFirestore.QueryDocumentSnapshot[]) {
-    const trend: { [key: string]: number } = {};
-
-    docs.forEach(doc => {
-      const date = this.formatDateByTimeframe(doc.data().createdAt.toDate(), 'monthly');
-      trend[date] = (trend[date] || 0) + 1;
-    });
-
-    return Object.entries(trend)
-      .map(([date, count]) => ({ date, count }))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }
-
-  private async getTopCustomers(
-    customerOrders: Map<string, { totalSpent: number; orderCount: number }>
-  ) {
-    const customerData = Array.from(customerOrders.entries());
-    const topCustomerIds = customerData
-      .sort(([, a], [, b]) => b.totalSpent - a.totalSpent)
-      .slice(0, 10)
-      .map(([id]) => id);
-
-    const customers = await Promise.all(
-      topCustomerIds.map(id => this.usersCollection.doc(id).get())
-    );
-
-    return customers.map((doc, index) => {
-      const customer = doc.data();
-      const orders = customerOrders.get(doc.id)!;
-      return {
-        id: doc.id,
-        name: customer?.name || 'Anonymous',
-        totalSpent: orders.totalSpent,
-        orderCount: orders.orderCount
+      // Get all users
+      const usersSnapshot = await this.usersCollection.get();
+      
+      // Calculate new vs returning customers (based on orderCount)
+      const newVsReturning = {
+        new: 0,
+        returning: 0
       };
-    });
-  }
 
-  private async getYesterdayStats() {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    yesterday.setHours(0, 0, 0, 0);
+      // Get all orders for customer analysis
+      const ordersSnapshot = await this.ordersCollection.get();
+      const customerOrders: { [customerId: string]: { count: number; total: number } } = {};
+      
+      ordersSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const customerId = data.userId;
+        if (!customerOrders[customerId]) {
+          customerOrders[customerId] = { count: 0, total: 0 };
+        }
+        customerOrders[customerId].count++;
+        customerOrders[customerId].total += data.totalAmount || 0;
+      });
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+      // Process customer data
+      const customerData: Array<{
+        id: string;
+        name: string;
+        totalSpent: number;
+        orderCount: number;
+        createdAt: Date;
+      }> = [];
 
-    const [orders, users] = await Promise.all([
-      this.ordersCollection
-        .where('createdAt', '>=', yesterday)
-        .where('createdAt', '<', today)
-        .get(),
-      this.usersCollection
-        .where('createdAt', '>=', yesterday)
-        .where('createdAt', '<', today)
-        .get()
-    ]);
+      usersSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const orders = customerOrders[doc.id] || { count: 0, total: 0 };
+        
+        if (orders.count === 0) {
+          newVsReturning.new++;
+        } else {
+          newVsReturning.returning++;
+        }
 
-    return {
-      revenue: orders.docs.reduce((sum, doc) => sum + (doc.data().total || 0), 0),
-      orders: orders.docs.length,
-      newCustomers: users.docs.length
-    };
+        customerData.push({
+          id: doc.id,
+          name: `${data.firstName} ${data.lastName}`,
+          totalSpent: orders.total,
+          orderCount: orders.count,
+          createdAt: data.createdAt?.toDate() || new Date()
+        });
+      });
+
+      // Calculate customer growth trend (last 30 days)
+      const trend: Array<{ date: string; count: number }> = [];
+      const today = new Date();
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      for (let i = 0; i < 30; i++) {
+        const date = new Date(thirtyDaysAgo);
+        date.setDate(date.getDate() + i);
+        const dateStr = date.toISOString().slice(0, 10);
+        
+        const count = customerData.filter(customer => 
+          customer.createdAt <= date
+        ).length;
+
+        trend.push({ date: dateStr, count });
+      }
+
+      // Calculate growth rate
+      const rateStart = trend[0].count;
+      const rateEnd = trend[trend.length - 1].count;
+      const growthRate = rateStart !== 0 
+        ? ((rateEnd - rateStart) / rateStart) * 100 
+        : 0;
+
+      // Get top customers
+      const topCustomers = customerData
+        .sort((a, b) => b.totalSpent - a.totalSpent)
+        .slice(0, limit)
+        .map(({ id, name, totalSpent, orderCount }) => ({
+          id,
+          name,
+          totalSpent,
+          orderCount
+        }));
+
+      const stats: CustomerStats = {
+        newVsReturning,
+        growth: {
+          rate: growthRate,
+          trend
+        },
+        topCustomers
+      };
+
+      await setCache(cacheKeyStr, stats, 3600); // Cache for 1 hour
+      return stats;
+    } catch (error) {
+      Logger.error('Error getting customer stats:', error);
+      return {
+        newVsReturning: { new: 0, returning: 0 },
+        growth: {
+          rate: 0,
+          trend: []
+        },
+        topCustomers: []
+      };
+    }
   }
 }
-
-export const analyticsService = new AnalyticsService();

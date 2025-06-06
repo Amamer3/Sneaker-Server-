@@ -74,6 +74,7 @@ import analyticsRoutes from './routes/analytics';
 import dashboardRoutes from './routes/dashboard';
 import deliveryRoutes from './routes/delivery';
 import currencyRoutes from './routes/currency';
+import monitoringRoutes from './routes/monitoring';
 
 // Mount routes
 app.use('/api/auth', authRoutes);
@@ -85,6 +86,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin/dashboard', dashboardRoutes);
+app.use('/api/metrics', monitoringRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/exchange-rates', currencyRoutes);
 

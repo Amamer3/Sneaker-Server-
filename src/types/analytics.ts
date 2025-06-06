@@ -61,6 +61,8 @@ export interface OrderStats {
     /** Number of orders on this date */
     count: number;
   }>;
+  /** Total number of orders */
+  totalOrders: number;
 }
 
 /** Product performance statistics */
@@ -90,6 +92,8 @@ export interface ProductStats {
     /** Number of products in each category */
     [category: string]: number;
   };
+  /** Total number of products analyzed */
+  totalProducts: number;
 }
 
 /** Customer behavior and performance statistics */
