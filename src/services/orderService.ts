@@ -97,5 +97,12 @@ export async function getOrdersByUser(
 }
 
 export async function updateOrderStatus(id: string, status: Order['status']): Promise<void> {
-  await ordersCollection.doc(id).update({ status, updatedAt: new Date() });
+  const doc = await ordersCollection.doc(id).get();
+  if (!doc.exists) {
+    throw new Error('Order not found');
+  }
+  await ordersCollection.doc(id).update({ 
+    status, 
+    updatedAt: new Date() 
+  });
 }

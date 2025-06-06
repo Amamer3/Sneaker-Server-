@@ -75,9 +75,21 @@ export const getAllOrders = async (req: AuthRequest, res: Response, next: NextFu
 
 export const updateOrderStatus = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    await orderService.updateOrderStatus(req.params.id, req.body.status);
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!status) {
+      res.status(400).json({ message: 'Status is required' });
+      return;
+    }
+
+    await orderService.updateOrderStatus(id, status);
     res.json({ message: 'Order status updated' });
   } catch (err) {
+    if (err instanceof Error && err.message === 'Order not found') {
+      res.status(404).json({ message: 'Order not found' });
+      return;
+    }
     next(err);
   }
 };

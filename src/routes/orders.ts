@@ -23,7 +23,13 @@ router.get('/', authenticateJWT, authorizeRoles('admin'), (req, res, next) => {
   orderController.getAllOrders(authReq, res, next);
 });
 
+// Support both PUT and PATCH for order status updates
 router.put('/:id/status', authenticateJWT, authorizeRoles('admin'), (req, res, next) => {
+  const authReq = req as AuthRequest;
+  orderController.updateOrderStatus(authReq, res, next);
+});
+
+router.patch('/:id/status', authenticateJWT, authorizeRoles('admin'), (req, res, next) => {
   const authReq = req as AuthRequest;
   orderController.updateOrderStatus(authReq, res, next);
 });
