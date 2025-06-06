@@ -7,11 +7,31 @@ const analyticsService = new AnalyticsService();
 // Overview Analytics
 export const getOverviewStats = async (req: Request, res: Response) => {
   try {
+    // Validate user is authenticated and is admin (this is a backup check)
+    const user = (req as any).user;
+    if (!user || user.role !== 'admin') {
+      res.status(403).json({ 
+        error: 'Forbidden',
+        message: 'You must be an admin to access analytics' 
+      });
+      return;
+    }
+
     const stats = await analyticsService.getOverviewStats();
     res.json(stats);
   } catch (error) {
     console.error('Error getting overview stats:', error);
-    res.status(500).json({ error: 'Failed to retrieve overview statistics' });
+    if (error instanceof Error) {
+      res.status(500).json({ 
+        error: 'Failed to retrieve overview statistics',
+        message: error.message 
+      });
+    } else {
+      res.status(500).json({ 
+        error: 'Failed to retrieve overview statistics',
+        message: 'An unknown error occurred' 
+      });
+    }
   }
 };
 

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authorizeRoles } from '../middleware/auth';
+import { authenticateJWT, authorizeRoles } from '../middleware/auth';
 import { validateAnalyticsQuery } from '../middleware/validation/analytics';
 import { analyticsRateLimit } from '../middleware/rateLimit';
 import { cacheControl } from '../middleware/cache-control';
@@ -8,7 +8,8 @@ import * as analyticsController from '../controllers/analyticsController';
 const router = Router();
 
 // Apply middleware to all analytics routes
-router.use(authorizeRoles('admin'));
+router.use(authenticateJWT); // First authenticate the user
+router.use(authorizeRoles('admin')); // Then check if they are an admin
 router.use(analyticsRateLimit);
 router.use(validateAnalyticsQuery);
 
