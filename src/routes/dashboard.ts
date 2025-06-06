@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authorizeRoles } from '../middleware/auth';
+import { authenticateJWT, authorizeRoles } from '../middleware/auth';
 import * as dashboardController from '../controllers/dashboardController';
 import { analyticsRateLimit } from '../middleware/rateLimit';
 import { cacheControl } from '../middleware/cache-control';
@@ -7,7 +7,8 @@ import { cacheControl } from '../middleware/cache-control';
 const router = Router();
 
 // Apply middleware to all dashboard routes
-router.use(authorizeRoles('admin'));
+router.use(authenticateJWT); // First check if the user is authenticated
+router.use(authorizeRoles('admin')); // Then check if they are an admin
 router.use(analyticsRateLimit);
 
 // Cache control settings

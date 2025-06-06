@@ -1,6 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import * as authService from '../services/authService';
 import { AuthRequest } from '../middleware/auth';
+import admin from 'firebase-admin';
+import { FirestoreService } from '../utils/firestore';
+import { COLLECTIONS } from '../constants/collections';
+
+const usersCollection = FirestoreService.collection(COLLECTIONS.USERS);
 
 export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -42,16 +47,32 @@ export const profile = async (req: AuthRequest, res: Response, next: NextFunctio
 export const adminLogin = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) throw new Error('All fields required');
-
-    const user = await authService.login({ email, password });
-    if (user.user.role !== 'admin') {
-      res.status(403).json({ message: 'Forbidden: Not an admin' });
+    if (!email || !password) {
+      res.status(400).json({ message: 'All fields required' });
       return;
     }
 
-    res.json(user);
+    try {
+      // First verify if the user exists and is an admin
+      const userRecord = await admin.auth().getUserByEmail(email);
+      const userDoc = await usersCollection.doc(userRecord.uid).get();
+      const userData = userDoc.data();
+      
+      if (!userDoc.exists || userData?.role !== 'admin') {
+        res.status(403).json({ message: 'Forbidden: Not an admin' });
+        return;
+      }
+
+      // If the user is an admin, attempt to log them in
+      const loginResult = await authService.login({ email, password });
+      res.json(loginResult);
+    } catch (innerError) {
+      // Don't expose whether the user exists or not
+      console.error('Admin login error:', innerError);
+      res.status(403).json({ message: 'Invalid credentials or not an admin' });
+    }
   } catch (err) {
+    console.error('Unexpected error during admin login:', err);
     next(err);
   }
 };
