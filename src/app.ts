@@ -9,6 +9,7 @@ dotenv.config();
 
 // Import routes
 import adminRoutes from './routes/admin';
+import paymentRoutes from './routes/payment';
 
 // Initialize Firebase and Cloudinary configs
 import './config/firebase';
@@ -36,7 +37,15 @@ app.use(morgan('combined', {
     write: (message) => Logger.http(message.trim())
   }
 }));
-app.use(express.json());
+
+// Use JSON middleware for all routes except Stripe webhook
+app.use((req, res, next) => {
+  if (req.originalUrl === '/api/payment/webhook') {
+    next();
+  } else {
+    express.json()(req, res, next);
+  }
+});
 
 // Handle double 'api' in URLs
 app.use((req, res, next) => {
@@ -89,10 +98,11 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/metrics', monitoringRoutes);
+app.use('/api/admin/dashboard', dashboardRoutes);  // Mount dashboard routes
+app.use('/api/payment', paymentRoutes);
 app.use('/api/delivery', deliveryRoutes);
-app.use('/api/exchange-rates', currencyRoutes);
-app.use('/api/admin', adminRoutes); // Mount admin routes
+app.use('/api/currency', currencyRoutes);
+app.use('/api/monitoring', monitoringRoutes);
 
 // Health check route
 app.get('/', (req, res) => {
