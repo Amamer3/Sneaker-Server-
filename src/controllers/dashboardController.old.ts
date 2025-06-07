@@ -1,6 +1,41 @@
 import { Request, Response } from 'express';
 import { AnalyticsService } from '../services/analyticsService';
 import * as orderService from '../services/orderService';
+
+const analyticsService = new AnalyticsService();
+
+export const getDashboardStats = async (_req: Request, res: Response) => {
+  try {
+    const [overviewStats, productStats] = await Promise.all([
+      analyticsService.getOverviewStats(),
+      analyticsService.getProductStats()
+    ]);
+
+    // Format stats according to frontend expectations
+    const stats = {
+      totalRevenue: overviewStats.totalRevenue,
+      totalOrders: overviewStats.totalOrders,
+      totalProducts: productStats.totalProducts,
+      totalCustomers: overviewStats.totalCustomers,
+      revenueGrowth: `${overviewStats.percentageChanges.revenue}%`,
+      ordersGrowth: `${overviewStats.percentageChanges.orders}%`,
+      productsGrowth: '0%', // We don't track product growth yet
+      customersGrowth: `${overviewStats.percentageChanges.customers}%`
+    };
+
+    res.json({ stats });
+  } catch (error) {
+    console.error('Error getting dashboard stats:', error);
+    res.status(500).json({
+      error: 'Failed to retrieve dashboard statistics',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+import { Request, Response } from 'express';
+import { AnalyticsService } from '../services/analyticsService';
+import * as orderService from '../services/orderService';
 import { Order } from '../models/Order';
 
 const analyticsService = new AnalyticsService();
@@ -87,5 +122,34 @@ export const getRecentOrders = async (req: Request, res: Response) => {
       error: 'Failed to retrieve recent orders',
       message: error instanceof Error ? error.message : 'Unknown error'
     });
+  }
+};
+      },
+      topProducts: productStats.topProducts,
+      lowStock: productStats.lowStock
+    };
+
+    res.json(dashboardStats);
+  } catch (error) {
+    console.error('Error getting dashboard stats:', error);
+    res.status(500).json({ error: 'Failed to retrieve dashboard statistics' });
+  }
+};
+
+export const getRecentOrders = async (req: Request, res: Response) => {
+  try {
+    const page = 1; // Always get first page for recent orders
+    const limit = parseInt(req.query.limit as string) || 10;
+    
+    const { orders, total } = await orderService.getAllOrders(page, limit);
+    
+    res.json({
+      orders,
+      total,
+      hasMore: limit < total
+    });
+  } catch (error) {
+    console.error('Error getting recent orders:', error);
+    res.status(500).json({ error: 'Failed to retrieve recent orders' });
   }
 };

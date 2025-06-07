@@ -106,3 +106,12 @@ export async function updateOrderStatus(id: string, status: Order['status']): Pr
     updatedAt: new Date() 
   });
 }
+
+export async function getRecentOrders(limit: number = 10): Promise<Order[]> {
+  const snapshot = await ordersCollection
+    .orderBy('createdAt', 'desc')
+    .limit(limit)
+    .get();
+
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+}

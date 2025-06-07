@@ -7,6 +7,9 @@ import dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
+// Import routes
+import adminRoutes from './routes/admin';
+
 // Initialize Firebase and Cloudinary configs
 import './config/firebase';
 import './config/cloudinary';
@@ -85,10 +88,11 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/analytics', analyticsRoutes);
-app.use('/api/admin/dashboard', dashboardRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/metrics', monitoringRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/exchange-rates', currencyRoutes);
+app.use('/api/admin', adminRoutes); // Mount admin routes
 
 // Health check route
 app.get('/', (req, res) => {
