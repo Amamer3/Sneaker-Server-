@@ -85,7 +85,7 @@ import userRoutes from './routes/users';
 import analyticsRoutes from './routes/analytics';
 import dashboardRoutes from './routes/dashboard';
 import deliveryRoutes from './routes/delivery';
-import currencyRoutes from './routes/currency';
+
 import monitoringRoutes from './routes/monitoring';
 
 // Mount routes
@@ -101,7 +101,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/admin/dashboard', dashboardRoutes);  // Mount dashboard routes
 app.use('/api/payment', paymentRoutes);
 app.use('/api/delivery', deliveryRoutes);
-app.use('/api/currency', currencyRoutes);
+
 app.use('/api/monitoring', monitoringRoutes);
 
 // Health check route
