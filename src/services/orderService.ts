@@ -10,7 +10,7 @@ interface GetOrdersResult {
   total: number;
 }
 
-export async function createOrder(order: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+export async function createOrder(order: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>): Promise<Order> {
   try {
     const now = new Date();
     const orderData = {
@@ -24,7 +24,17 @@ export async function createOrder(order: Omit<Order, 'id' | 'createdAt' | 'updat
     if (!docRef.id) {
       throw new Error('No order ID received from database');
     }
-    return docRef.id;
+    
+    // Return the complete order object
+    const orderDoc = await docRef.get();
+    if (!orderDoc.exists) {
+      throw new Error('Order was created but could not be retrieved');
+    }
+    
+    return {
+      id: orderDoc.id,
+      ...orderDoc.data()
+    } as Order;
   } catch (error) {
     console.error('Error creating order:', error);
     throw new Error('Failed to create order in database');

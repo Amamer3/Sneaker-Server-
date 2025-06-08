@@ -2,43 +2,74 @@ import { Request, Response, NextFunction } from 'express';
 import * as orderService from '../services/orderService';
 import { AuthRequest } from '../middleware/auth';
 import { CustomError } from '../utils/helpers';
+import { CreateOrderInput, OrderItem } from '../models/Order';
 
 export const createOrder = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const userId = req.user?.id;
     if (!userId) throw new CustomError('Unauthorized', 401);
 
-    const { items, totalAmount, shippingAddress, paymentMethod } = req.body;
+    const { items, shippingAddress, total }: CreateOrderInput = req.body;
 
-    // Validate required fields
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      throw new CustomError('Order items are required', 400);
+    // Validate items
+    if (!items?.length) {
+      throw new CustomError('Order must contain items', 400);
     }
-    if (typeof totalAmount !== 'number' || totalAmount <= 0) {
-      throw new CustomError('Valid total amount is required', 400);
-    }
-    if (!shippingAddress || !shippingAddress.street || !shippingAddress.city || !shippingAddress.state || !shippingAddress.zipCode) {
+
+    // Clean and validate items
+    const cleanedItems = items.map(item => ({
+      productId: item.productId,
+      quantity: typeof item.quantity === 'string' ? parseInt(item.quantity, 10) : item.quantity,
+      name: item.name || '',
+      price: typeof item.price === 'string' ? parseFloat(item.price) : item.price,
+      image: item.image || ''
+    }));
+
+    // Validate shipping address
+    if (!shippingAddress?.street || !shippingAddress.city || 
+        !shippingAddress.state || !shippingAddress.country || !shippingAddress.postalCode) {
       throw new CustomError('Complete shipping address is required', 400);
     }
-    if (!paymentMethod) {
-      throw new CustomError('Payment method is required', 400);
+
+    // Clean shipping address
+    const cleanedAddress = {
+      street: shippingAddress.street.trim(),
+      city: shippingAddress.city.trim(),
+      state: shippingAddress.state.trim(),
+      country: shippingAddress.country.trim(),
+      postalCode: shippingAddress.postalCode,
+      zipCode: shippingAddress.zipCode
+    };
+
+    // Calculate total
+    const calculatedTotal = cleanedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    if (!calculatedTotal || calculatedTotal <= 0) {
+      throw new CustomError('Valid total amount is required', 400);
     }
 
     // Create the order
-    const orderId = await orderService.createOrder({ 
+    const order = await orderService.createOrder({
       userId,
-      items,
-      totalAmount,
-      shippingAddress,
-      paymentMethod,
-      status: 'pending'
-    });
-
-    if (!orderId) {
+      items: cleanedItems,
+      total: total || calculatedTotal,
+      shippingAddress: cleanedAddress,
+      status: 'pending',
+      shipping: {
+        name: cleanedAddress.street,
+        email: '',
+        phone: '',
+        address: cleanedAddress
+      },
+      user: {
+        id: userId,
+        email: '',
+        name: ''
+      }
+    });    if (!order) {
       throw new CustomError('Failed to create order', 500);
     }
 
-    res.status(201).json({ orderId });
+    res.status(201).json(order);
   } catch (err) {
     console.error('Order creation error:', err);
     if (err instanceof CustomError) {
