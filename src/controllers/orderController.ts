@@ -45,13 +45,12 @@ export const createOrder = async (req: AuthRequest, res: Response, next: NextFun
     const calculatedTotal = cleanedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     if (!calculatedTotal || calculatedTotal <= 0) {
       throw new CustomError('Valid total amount is required', 400);
-    }
-
-    // Create the order
+    }    // Create the order with all required fields
     const order = await orderService.createOrder({
       userId,
       items: cleanedItems,
       total: total || calculatedTotal,
+      totalAmount: total || calculatedTotal, // Add totalAmount to match interface
       shippingAddress: cleanedAddress,
       status: 'pending',
       shipping: {
@@ -64,8 +63,9 @@ export const createOrder = async (req: AuthRequest, res: Response, next: NextFun
         id: userId,
         email: '',
         name: ''
-      }
-    });    if (!order) {
+      },
+      paymentMethod: 'paystack' // Add default payment method
+    });if (!order) {
       throw new CustomError('Failed to create order', 500);
     }
 

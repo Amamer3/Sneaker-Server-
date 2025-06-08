@@ -16,6 +16,9 @@ export async function createOrder(order: Omit<Order, 'id' | 'createdAt' | 'updat
     const orderData = {
       ...order,
       status: order.status || 'pending',
+      total: order.total || 0,
+      totalAmount: order.total || 0, // Set totalAmount same as total for compatibility
+      paymentMethod: order.paymentMethod || 'paystack', // Default payment method
       createdAt: now,
       updatedAt: now
     };
@@ -44,7 +47,14 @@ export async function createOrder(order: Omit<Order, 'id' | 'createdAt' | 'updat
 export async function getOrderById(id: string): Promise<Order | null> {
   const doc = await ordersCollection.doc(id).get();
   if (!doc.exists) return null;
-  return { id: doc.id, ...doc.data() } as Order;
+  const data = doc.data();
+  return {
+    id: doc.id,
+    ...data,
+    total: data?.total || data?.totalAmount || 0,
+    totalAmount: data?.total || data?.totalAmount || 0, // Ensure both fields exist
+    paymentMethod: data?.paymentMethod || 'paystack'
+  } as Order;
 }
 
 export async function getAllOrders(

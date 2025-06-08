@@ -27,7 +27,7 @@ interface FormattedOrder {
   };
   items: Order['items'];
   shippingAddress: Order['shippingAddress'];
-  paymentMethod: Order['paymentMethod'];
+  paymentMethod: string;
 }
 
 export const getDashboardStats = async (_req: Request, res: Response) => {
@@ -64,20 +64,19 @@ export const getRecentOrders = async (req: Request, res: Response) => {
     const limit = Number(req.query.limit) || 10;
     
     const orders = await orderService.getRecentOrders(limit);
-    
-    // Transform orders to match the expected format
+      // Transform orders to match the expected format
     const formattedOrders: FormattedOrder[] = orders.map(order => ({
       id: order.id,
-      total: order.totalAmount,
+      total: order.total || order.totalAmount || 0,
       status: order.status,
       createdAt: order.createdAt,
       customer: {
-        name: order.shippingAddress.city ? `${order.shippingAddress.city} Customer` : 'Unknown',
-        email: 'No email' // Since we don't store email in Order model
+        name: order.shipping?.name || order.shippingAddress.city ? `${order.shippingAddress.city} Customer` : 'Unknown',
+        email: order.shipping?.email || 'No email'
       },
       items: order.items,
       shippingAddress: order.shippingAddress,
-      paymentMethod: order.paymentMethod
+      paymentMethod: order.paymentMethod || 'paystack'
     }));
 
     res.json({ orders: formattedOrders });

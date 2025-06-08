@@ -33,10 +33,12 @@ export interface Order {
   userId: string;
   items: OrderItem[];
   total: number;
+  totalAmount: number;  // For backward compatibility
   status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'failed';
   shippingAddress: Address;
   shipping: ShippingInfo;
   user: UserInfo;
+  paymentMethod: string;
   createdAt: Date;
   updatedAt: Date;
 }
