@@ -79,7 +79,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       featured: req.body.featured === true || req.body.featured === 'true',
       createdAt: new Date(),
       updatedAt: new Date(),
-      searchTokens: generateSearchTokens(req.body.name, req.body.brand, req.body.category)
+      searchTokens: createSearchTokens(req.body.name, req.body.brand, req.body.category)
     };
 
     console.log('Creating product with final data:', productData);
@@ -95,6 +95,29 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
     console.error('Error in createProduct:', error);
     next(error);
   }
+};
+
+// Helper function to generate search tokens
+function createSearchTokens(name: string, brand: string, category: string): string[] {
+  const tokens = new Set<string>();
+  
+  // Add full strings
+  tokens.add(name.toLowerCase());
+  tokens.add(brand.toLowerCase());
+  tokens.add(category.toLowerCase());
+  
+  // Add word tokens
+  const words = `${name} ${brand} ${category}`.toLowerCase().split(/\s+/);
+  words.forEach(word => tokens.add(word));
+  
+  // Add partial matches (ngrams)
+  words.forEach(word => {
+    for (let i = 1; i <= word.length; i++) {
+      tokens.add(word.substring(0, i));
+    }
+  });
+  
+  return Array.from(tokens);
 };
 
 export const getAllProducts = async (req: Request, res: Response, next: NextFunction) => {
@@ -205,37 +228,77 @@ export const toggleFeatured = async (req: Request, res: Response, next: NextFunc
 
 export const uploadImages = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const product = await productService.getProductById(req.params.id);
-    if (!product) {
+    const { id } = req.params;
+    console.log(`Uploading images for product ${id}`);
+    console.log('Files received:', req.files);
+
+    // Get existing product
+    const existingProduct = await productService.getProductById(id);
+    if (!existingProduct) {
       return res.status(404).json({ message: 'Product not found' });
     }
 
     let newImages: Product['images'] = [];
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] } | Express.Multer.File[] | undefined;
     
-    if (req.files && Array.isArray(req.files)) {
-      const uploadPromises = (req.files as Express.Multer.File[]).map(async (file) => {
+    if (!files || (Array.isArray(files) && files.length === 0) || (!Array.isArray(files) && Object.keys(files).length === 0)) {
+      return res.status(400).json({ message: 'No images provided' });
+    }
+
+    try {
+      let uploadFiles: Express.Multer.File[] = [];
+      if (Array.isArray(files)) {
+        uploadFiles = files;
+      } else {
+        uploadFiles = Object.values(files).flat();
+      }
+
+      console.log(`Processing ${uploadFiles.length} new images`);
+
+      const uploadPromises = uploadFiles.map(async (file, index) => {
+        console.log(`Uploading image ${index + 1}:`, file.originalname);
         const result = await handleImageUpload(file);
+        console.log(`Image ${index + 1} uploaded successfully:`, result.secure_url);
+        
         return {
           id: uuidv4(),
           url: result.secure_url,
-          order: (product.images?.length || 0) + newImages.length,
-          publicId: result.public_id
+          order: existingProduct.images.length + index,
+          publicId: result.public_id,
+          width: result.width,
+          height: result.height,
+          format: result.format
         };
       });
-      
+
       newImages = await Promise.all(uploadPromises);
+      console.log('All new images processed:', newImages);
+
+      // Combine existing and new images
+      const updatedImages = [...existingProduct.images, ...newImages];
+
+      // Update product with new images
+      const updatedProduct = await productService.updateProduct(id, {
+        images: updatedImages,
+        updatedAt: new Date()
+      });
+
+      // Force cache invalidation
+      await productService.invalidateCache();
+
+      res.json(updatedProduct);
+    } catch (error) {
+      console.error('Error processing images:', error);
+      // Clean up any uploaded images if there was an error
+      for (const image of newImages) {
+        if (image.publicId) {
+          await CloudinaryService.deleteImage(image.publicId).catch(console.error);
+        }
+      }
+      throw new Error('Failed to process images');
     }
-
-    const updatedProduct = await productService.updateProduct(req.params.id, {
-      images: [...(product.images || []), ...newImages]
-    });
-
-    if (!updatedProduct) {
-      return res.status(404).json({ message: 'Failed to update product' });
-    }
-
-    res.json(updatedProduct);
   } catch (error) {
+    console.error('Error in uploadImages:', error);
     next(error);
   }
 };
@@ -368,26 +431,3 @@ export const addProductReview = async (req: AuthRequest, res: Response, next: Ne
     next(error);
   }
 };
-
-// Helper function to generate search tokens
-function generateSearchTokens(name: string, brand: string, category: string): string[] {
-  const tokens = new Set<string>();
-  
-  // Add full strings
-  tokens.add(name.toLowerCase());
-  tokens.add(brand.toLowerCase());
-  tokens.add(category.toLowerCase());
-  
-  // Add word tokens
-  const words = `${name} ${brand} ${category}`.toLowerCase().split(/\s+/);
-  words.forEach(word => tokens.add(word));
-  
-  // Add partial matches (ngrams)
-  words.forEach(word => {
-    for (let i = 1; i <= word.length; i++) {
-      tokens.add(word.substring(0, i));
-    }
-  });
-  
-  return Array.from(tokens);
-}
