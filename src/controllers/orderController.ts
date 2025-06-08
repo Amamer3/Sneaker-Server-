@@ -7,10 +7,45 @@ export const createOrder = async (req: AuthRequest, res: Response, next: NextFun
   try {
     const userId = req.user?.id;
     if (!userId) throw new CustomError('Unauthorized', 401);
-    const orderId = await orderService.createOrder({ ...req.body, userId });
+
+    const { items, totalAmount, shippingAddress, paymentMethod } = req.body;
+
+    // Validate required fields
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      throw new CustomError('Order items are required', 400);
+    }
+    if (typeof totalAmount !== 'number' || totalAmount <= 0) {
+      throw new CustomError('Valid total amount is required', 400);
+    }
+    if (!shippingAddress || !shippingAddress.street || !shippingAddress.city || !shippingAddress.state || !shippingAddress.zipCode) {
+      throw new CustomError('Complete shipping address is required', 400);
+    }
+    if (!paymentMethod) {
+      throw new CustomError('Payment method is required', 400);
+    }
+
+    // Create the order
+    const orderId = await orderService.createOrder({ 
+      userId,
+      items,
+      totalAmount,
+      shippingAddress,
+      paymentMethod,
+      status: 'pending'
+    });
+
+    if (!orderId) {
+      throw new CustomError('Failed to create order', 500);
+    }
+
     res.status(201).json({ orderId });
   } catch (err) {
-    next(err);
+    console.error('Order creation error:', err);
+    if (err instanceof CustomError) {
+      res.status(err.statusCode).json({ message: err.message });
+    } else {
+      res.status(500).json({ message: 'Failed to create order' });
+    }
   }
 };
 

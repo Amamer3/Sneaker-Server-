@@ -6,7 +6,8 @@ const router = Router();
 
 // User routes
 router.post('/', authenticateJWT, (req: Request, res: Response, next: NextFunction) => {
-  orderController.createOrder(req, res, next);
+  const authReq = req as AuthRequest;
+  orderController.createOrder(authReq, res, next);
 });
 
 router.get('/my', authenticateJWT, (req: Request, res: Response, next: NextFunction) => {

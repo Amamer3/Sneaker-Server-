@@ -11,14 +11,24 @@ interface GetOrdersResult {
 }
 
 export async function createOrder(order: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
-  const now = new Date();
-  const docRef = await ordersCollection.add({
-    ...order,
-    status: 'pending',
-    createdAt: now,
-    updatedAt: now
-  });
-  return docRef.id;
+  try {
+    const now = new Date();
+    const orderData = {
+      ...order,
+      status: order.status || 'pending',
+      createdAt: now,
+      updatedAt: now
+    };
+
+    const docRef = await ordersCollection.add(orderData);
+    if (!docRef.id) {
+      throw new Error('No order ID received from database');
+    }
+    return docRef.id;
+  } catch (error) {
+    console.error('Error creating order:', error);
+    throw new Error('Failed to create order in database');
+  }
 }
 
 export async function getOrderById(id: string): Promise<Order | null> {
