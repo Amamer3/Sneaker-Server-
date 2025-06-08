@@ -22,8 +22,13 @@ router.post('/:id/reviews', authenticateJWT, wrapHandler(productController.addPr
 // Admin Routes
 router.post('/', 
   authenticateJWT, 
-  authorizeRoles('admin'), 
-  upload.array('images', 5), 
+  authorizeRoles('admin'),
+  upload.fields([
+    { name: 'images', maxCount: 5 },
+    { name: 'image', maxCount: 5 },
+    { name: 'files', maxCount: 5 },
+    { name: 'productImages', maxCount: 5 }
+  ]), 
   wrapHandler(productController.createProduct)
 );
 

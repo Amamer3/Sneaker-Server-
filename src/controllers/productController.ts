@@ -32,10 +32,21 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 
     let images: Product['images'] = [];
     
-    if (req.files && Array.isArray(req.files)) {
-      console.log(`Processing ${req.files.length} images`);
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] } | Express.Multer.File[] | undefined;
+    
+    if (files) {
+      let uploadFiles: Express.Multer.File[] = [];
       
-      const uploadPromises = (req.files as Express.Multer.File[]).map(async (file, index) => {
+      if (Array.isArray(files)) {
+        uploadFiles = files;
+      } else {
+        // Combine all files from different fields
+        uploadFiles = Object.values(files).flat();
+      }
+      
+      console.log(`Processing ${uploadFiles.length} images`);
+      
+      const uploadPromises = uploadFiles.map(async (file, index) => {
         console.log(`Uploading image ${index + 1}:`, file.originalname);
         const result = await handleImageUpload(file);
         console.log(`Image ${index + 1} uploaded successfully:`, result.secure_url);
