@@ -48,6 +48,9 @@ export const verifyPayment = async (req: Request, res: Response) => {
       });
     }
 
+    // Add logging to debug the reference
+    Logger.info('Verifying payment with reference:', reference);
+
     const verification = await paymentService.verifyTransaction(reference);
     res.json(verification);
   } catch (error) {

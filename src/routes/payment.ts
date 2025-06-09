@@ -17,7 +17,8 @@ router.use(authenticateJWT);
 // Initialize payment with Paystack
 router.post('/initialize', paymentController.initializePayment as RequestHandler);
 
-// Verify payment
+// Verify payment - support both GET and POST
 router.get('/verify/:reference', paymentController.verifyPayment as RequestHandler);
+router.post('/verify/:reference', paymentController.verifyPayment as RequestHandler);
 
 export default router;

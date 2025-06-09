@@ -5,6 +5,7 @@ export interface Address {
   country: string;
   postalCode: string;
   zipCode: string;
+  phone: string;  // Add phone to address interface
 }
 
 export interface OrderItem {
@@ -20,6 +21,9 @@ export interface ShippingInfo {
   email: string;
   phone: string;
   address: Address;
+  city?: string;
+  state?: string;
+  country?: string;
 }
 
 export interface UserInfo {
@@ -53,7 +57,7 @@ export interface CreateOrderItemInput {
 
 export interface CreateOrderInput {
   items: CreateOrderItemInput[];
-  shippingAddress: Address;
+  shippingAddress: Address & { phone: string };  // Ensure phone is required
   total?: number;
 }
 

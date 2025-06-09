@@ -9,6 +9,11 @@ const paystackClient = paystack(process.env.PAYSTACK_SECRET_KEY!);
 type PaymentStatus = 'pending' | 'paid' | 'failed';
 
 export interface InitializePaymentDTO {
+  /**
+   * Amount in Ghana Cedis (GHS)
+   * Will be converted to pesewas (1 GHS = 100 pesewas) for Paystack
+   * Example: 100.50 GHS will be sent as 10050 pesewas
+   */
   amount: number;
   email: string;
   orderId: string;
@@ -45,16 +50,15 @@ const ordersCollection = FirestoreService.collection(COLLECTIONS.ORDERS);
 export const paymentService = {
   async initializeTransaction(params: InitializePaymentDTO): Promise<PaymentResponse> {
     try {
-      Logger.debug('Initializing payment transaction', params);
-
-      const { amount, email, orderId, customerId, reference, metadata = {} } = params;
-
-      // Convert amount to kobo (Paystack uses kobo)
-      const amountInKobo = Math.round(amount * 100);
+      Logger.debug('Initializing payment transaction', params);      const { amount, email, orderId, customerId, reference, metadata = {} } = params;
+      
+      // Convert amount to pesewas (Paystack requires amount in smallest currency unit)
+      // 1 GHS = 100 pesewas, so multiply by 100 to get the amount in pesewas
+      const amountInPesewas = Math.round(amount * 100);
 
       // Initialize transaction with Paystack
       const response = await paystackClient.transaction.initialize({
-        amount: amountInKobo,
+        amount: amountInPesewas,
         email,
         reference,
         metadata: {
@@ -112,7 +116,7 @@ export const paymentService = {
       // Update order with payment status
       await ordersCollection.doc(orderId).update({
         paymentStatus: status === 'success' ? 'paid' : 'failed' as PaymentStatus,
-        paidAmount: amount / 100, // Convert back from kobo to main currency
+        paidAmount: amount / 100, // Convert back from pesewas to GHS
         paymentDetails,
         updatedAt: new Date()
       });

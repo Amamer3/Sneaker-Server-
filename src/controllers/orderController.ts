@@ -29,6 +29,9 @@ export const createOrder = async (req: AuthRequest, res: Response, next: NextFun
     if (!shippingAddress?.street || !shippingAddress.city || 
         !shippingAddress.state || !shippingAddress.country || !shippingAddress.postalCode) {
       throw new CustomError('Complete shipping address is required', 400);
+    }    // Validate phone number
+    if (!shippingAddress.phone) {
+      throw new CustomError('Phone number is required', 400);
     }
 
     // Clean shipping address
@@ -38,33 +41,45 @@ export const createOrder = async (req: AuthRequest, res: Response, next: NextFun
       state: shippingAddress.state.trim(),
       country: shippingAddress.country.trim(),
       postalCode: shippingAddress.postalCode,
-      zipCode: shippingAddress.zipCode
+      zipCode: shippingAddress.zipCode,
+      phone: shippingAddress.phone.trim()
     };
 
     // Calculate total
     const calculatedTotal = cleanedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     if (!calculatedTotal || calculatedTotal <= 0) {
       throw new CustomError('Valid total amount is required', 400);
-    }    // Create the order with all required fields
+    }    // Create the order with all required fields    // Create address string for the customer name if not provided
+    const addressParts = [
+      cleanedAddress.street,
+      cleanedAddress.city,
+      cleanedAddress.state,
+      cleanedAddress.country
+    ].filter(Boolean);
+    const customerName = addressParts[0] || 'Unknown Customer';
+
     const order = await orderService.createOrder({
       userId,
       items: cleanedItems,
       total: total || calculatedTotal,
-      totalAmount: total || calculatedTotal, // Add totalAmount to match interface
+      totalAmount: total || calculatedTotal,
       shippingAddress: cleanedAddress,
       status: 'pending',
       shipping: {
-        name: cleanedAddress.street,
-        email: '',
-        phone: '',
-        address: cleanedAddress
+        name: customerName,
+        email: 'N/A',
+        phone: 'N/A',
+        address: cleanedAddress,
+        city: cleanedAddress.city,
+        state: cleanedAddress.state,
+        country: cleanedAddress.country
       },
       user: {
         id: userId,
-        email: '',
-        name: ''
+        email: 'N/A',
+        name: customerName
       },
-      paymentMethod: 'paystack' // Add default payment method
+      paymentMethod: 'paystack'
     });if (!order) {
       throw new CustomError('Failed to create order', 500);
     }
