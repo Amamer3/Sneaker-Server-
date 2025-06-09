@@ -32,9 +32,7 @@ export const createOrder = async (req: AuthRequest, res: Response, next: NextFun
     }    // Validate phone number
     if (!shippingAddress.phone) {
       throw new CustomError('Phone number is required', 400);
-    }
-
-    // Clean shipping address
+    }    // Clean shipping address and ensure all required fields
     const cleanedAddress = {
       street: shippingAddress.street.trim(),
       city: shippingAddress.city.trim(),
@@ -43,6 +41,20 @@ export const createOrder = async (req: AuthRequest, res: Response, next: NextFun
       postalCode: shippingAddress.postalCode,
       zipCode: shippingAddress.zipCode,
       phone: shippingAddress.phone.trim()
+    };
+
+    // Get user details from request
+    const userDetails = {
+      id: userId,
+      name: req.body.customerName || req.user?.name || 'N/A',
+      email: req.body.email || req.user?.email || 'N/A',
+      phone: shippingAddress.phone || 'N/A'
+    };    // Create the shipping info
+    const shippingInfo = {
+      name: userDetails.name,
+      email: userDetails.email,
+      phone: userDetails.phone,
+      address: cleanedAddress
     };
 
     // Calculate total
@@ -56,28 +68,18 @@ export const createOrder = async (req: AuthRequest, res: Response, next: NextFun
       cleanedAddress.state,
       cleanedAddress.country
     ].filter(Boolean);
-    const customerName = addressParts[0] || 'Unknown Customer';
-
-    const order = await orderService.createOrder({
+    const customerName = addressParts[0] || 'Unknown Customer';    const order = await orderService.createOrder({
       userId,
       items: cleanedItems,
       total: total || calculatedTotal,
       totalAmount: total || calculatedTotal,
       shippingAddress: cleanedAddress,
       status: 'pending',
-      shipping: {
-        name: customerName,
-        email: 'N/A',
-        phone: 'N/A',
-        address: cleanedAddress,
-        city: cleanedAddress.city,
-        state: cleanedAddress.state,
-        country: cleanedAddress.country
-      },
+      shipping: shippingInfo,
       user: {
         id: userId,
-        email: 'N/A',
-        name: customerName
+        email: userDetails.email,
+        name: userDetails.name
       },
       paymentMethod: 'paystack'
     });if (!order) {

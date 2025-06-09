@@ -2,6 +2,7 @@ import { Order } from '../models/Order';
 import { FirestoreService } from '../utils/firestore';
 import { COLLECTIONS } from '../constants/collections';
 import { DocumentData, Query } from '@google-cloud/firestore';
+import { admin } from '../config/firebase';
 
 const ordersCollection = FirestoreService.collection(COLLECTIONS.ORDERS);
 
@@ -12,7 +13,8 @@ interface GetOrdersResult {
 
 export async function createOrder(order: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>): Promise<Order> {
   try {
-    const now = new Date();    // Clean up shipping address
+    // Create Firestore timestamp for dates
+    const now = admin.firestore.Timestamp.now();
     const shippingAddress = {
       street: order.shippingAddress.street,
       city: order.shippingAddress.city,
