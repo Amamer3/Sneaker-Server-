@@ -63,6 +63,14 @@ app.use((req, res, next) => {
   next();
 });
 
+// Handle payment routes standardization
+app.use((req, res, next) => {
+  if (req.url.startsWith('/api/payments/')) {
+    req.url = req.url.replace('/api/payments/', '/api/payment/');
+  }
+  next();
+});
+
 // Test Redis connection
 redis.set('test_key', 'test_value');
 
@@ -98,7 +106,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/payment', paymentRoutes);
+app.use('/api/payment', paymentRoutes); // Mount payment routes
 app.use('/api/delivery', deliveryRoutes);
 
 app.use('/api/monitoring', monitoringRoutes);
