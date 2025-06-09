@@ -4,7 +4,7 @@ export interface Address {
   state: string;
   country: string;
   postalCode: string;
-  zipCode: string;
+  zipCode?: string;
   phone: string;  // Add phone to address interface
 }
 

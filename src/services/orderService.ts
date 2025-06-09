@@ -12,13 +12,25 @@ interface GetOrdersResult {
 
 export async function createOrder(order: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>): Promise<Order> {
   try {
-    const now = new Date();
+    const now = new Date();    // Clean up shipping address
+    const shippingAddress = {
+      street: order.shippingAddress.street,
+      city: order.shippingAddress.city,
+      state: order.shippingAddress.state,
+      country: order.shippingAddress.country,
+      postalCode: order.shippingAddress.postalCode,
+      phone: order.shippingAddress.phone,
+      // Only include zipCode if it's provided
+      ...(order.shippingAddress.zipCode && { zipCode: order.shippingAddress.zipCode })
+    };
+
     const orderData = {
       ...order,
       status: order.status || 'pending',
       total: order.total || 0,
       totalAmount: order.total || 0, // Set totalAmount same as total for compatibility
       paymentMethod: order.paymentMethod || 'paystack', // Default payment method
+      shippingAddress,
       createdAt: now,
       updatedAt: now
     };

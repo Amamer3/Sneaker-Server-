@@ -16,6 +16,10 @@ if (!admin.apps.length) {
 }
 
 const firestore = admin.firestore();
+// Configure Firestore to ignore undefined values
+firestore.settings({
+  ignoreUndefinedProperties: true
+});
 
 export { admin, firestore };
 

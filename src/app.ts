@@ -98,7 +98,6 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/admin/dashboard', dashboardRoutes);  // Mount dashboard routes
 app.use('/api/payment', paymentRoutes);
 app.use('/api/delivery', deliveryRoutes);
 
