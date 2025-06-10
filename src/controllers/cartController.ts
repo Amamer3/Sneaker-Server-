@@ -2,41 +2,93 @@ import { Response } from 'express';
 import { CartService } from '../services/cartService';
 import * as productService from '../services/productService';
 import { AuthRequest } from '../middleware/auth';
-import { Cart } from '../models/Cart';
+import { Cart, CartItem } from '../models/Cart';
 import { Product } from '../models/Product';
 
 const cartService = new CartService();
 
-async function enrichCartWithProductDetails(cart: Cart | null): Promise<(Cart & { items: Array<Cart['items'][0] & { product: Product | null }> }) | null> {
+type EnrichedCartItem = CartItem & { product: Product | null };
+type EnrichedCart = Omit<Cart, 'items'> & { items: EnrichedCartItem[] };
+
+async function enrichCartWithProductDetails(cart: Cart | null): Promise<EnrichedCart | null> {
   if (!cart) return null;
-  
-  // Get all product details in parallel
-  const products = await Promise.all(
-    cart.items.map(item => productService.getProduct(item.productId))
-  );
-  
-  // Attach product details to each cart item
-  const enrichedCart: Cart & { items: Array<Cart['items'][0] & { product: Product | null }> } = {
-    ...cart,
-    items: cart.items.map((item, index) => ({
-      ...item,
-      product: products[index] || null
-    }))
-  };
-  
-  return enrichedCart;
+
+  try {
+    // Get all product details in parallel
+    const productPromises = cart.items.map(async item => {
+      try {
+        return await productService.getProduct(item.productId);
+      } catch (error) {
+        console.error(`Error fetching product ${item.productId}:`, error);
+        return null;
+      }
+    });
+    
+    const products = await Promise.all(productPromises);
+    
+    // Attach product details to each cart item
+    const enrichedCart: EnrichedCart = {
+      ...cart,
+      items: cart.items.map((item, index) => ({
+        ...item,
+        product: products[index] || null
+      }))
+    };
+    
+    return enrichedCart;
+  } catch (error) {
+    console.error('Error enriching cart:', error);
+    // Return a basic cart structure if enrichment fails
+    return {
+      ...cart,
+      items: cart.items.map(item => ({
+        ...item,
+        product: null
+      }))
+    };
+  }
 }
+
+const emptyCart: EnrichedCart = {
+  id: '',
+  userId: '',
+  items: [],
+  total: 0,
+  createdAt: new Date(),
+  updatedAt: new Date()
+};
 
 export const getUserCart = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
-    const cart = await cartService.getCart(userId);
+    const userId = req.user?.id;
     
-    const enrichedCart = await enrichCartWithProductDetails(cart);
-    
-    res.json(enrichedCart || { items: [], total: 0 });
+    // Handle unauthenticated requests with an empty cart
+    if (!userId) {
+      return res.json(emptyCart);
+    }
+
+    try {
+      const cart = await cartService.getCart(userId);
+      
+      if (!cart) {
+        // Return empty cart if none exists
+        return res.json(emptyCart);
+      }
+
+      const enrichedCart = await enrichCartWithProductDetails(cart);
+      return res.json(enrichedCart || emptyCart);
+
+    } catch (cartError) {
+      console.error('Error getting or enriching cart:', cartError);
+      // Return empty cart in case of any error
+      return res.json(emptyCart);
+    }
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching cart', error });
+    console.error('Error in getUserCart:', error);
+    res.status(500).json({ 
+      message: 'Error processing request',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 };
 

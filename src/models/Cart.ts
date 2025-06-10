@@ -13,8 +13,8 @@ export interface GuestCartItem extends BaseCartItem {}
 
 // Stored cart item (with dates)
 export interface StoredCartItem extends BaseCartItem {
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Date | FirebaseFirestore.Timestamp;
+  updatedAt: Date | FirebaseFirestore.Timestamp;
 }
 
 // The type used in most operations
@@ -35,8 +35,8 @@ export interface GuestCart extends BaseCart {
 export interface StoredCart extends BaseCart {
   id: string;
   userId: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Date | FirebaseFirestore.Timestamp;
+  updatedAt: Date | FirebaseFirestore.Timestamp;
 }
 
 // The type used in most operations
