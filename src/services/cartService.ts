@@ -32,14 +32,20 @@ export class CartService {
       const now = new Date();
 
       if (!cart) {
-        const newCart: Omit<Cart, 'id'> = {
+        const newCart: Cart = {
           userId,
           items: [],
           total: 0,
           createdAt: now,
-          updatedAt: now
+          updatedAt: now,
+          id: ''
         };
         cart = await FirestoreService.create<Cart>(COLLECTIONS.CARTS, newCart);
+      }
+
+      // Ensure cart has an id
+      if (!cart.id) {
+        throw new Error('Cart ID is missing');
       }
 
       const existingItemIndex = cart.items.findIndex(
@@ -51,7 +57,6 @@ export class CartService {
         cart.items[existingItemIndex].updatedAt = now;
       } else {
         const cartItem: CartItem = {
-          id: FirestoreService.collection(COLLECTIONS.CARTS).doc().id,
           productId,
           size,
           quantity,
@@ -77,13 +82,12 @@ export class CartService {
       throw new Error('Failed to add item to cart');
     }
   }
-
-  async updateCartItemQuantity(userId: string, itemId: string, quantity: number): Promise<Cart | null> {
+  async updateCartItemQuantity(userId: string, productId: string, quantity: number): Promise<Cart | null> {
     try {
       const cart = await this.getCart(userId);
       if (!cart) return null;
 
-      const itemIndex = cart.items.findIndex(item => item.id === itemId);
+      const itemIndex = cart.items.findIndex(item => item.productId === productId);
       if (itemIndex === -1) return null;
 
       const now = new Date();
@@ -110,9 +114,8 @@ export class CartService {
       throw new Error('Failed to update cart item quantity');
     }
   }
-
-  async removeFromCart(userId: string, itemId: string): Promise<Cart | null> {
-    return this.updateCartItemQuantity(userId, itemId, 0);
+  async removeFromCart(userId: string, productId: string): Promise<Cart | null> {
+    return this.updateCartItemQuantity(userId, productId, 0);
   }
 
   async clearCart(userId: string): Promise<void> {
@@ -129,6 +132,52 @@ export class CartService {
     } catch (error) {
       console.error('Error clearing cart:', error);
       throw new Error('Failed to clear cart');
+    }
+  }
+  async createCart(userId: string, items: CartItem[]): Promise<Cart> {
+    try {
+      const now = new Date();
+      const cartData = {
+        userId,
+        items: items.map(item => ({
+          ...item,
+          createdAt: now,
+          updatedAt: now
+        })),
+        total: this.calculateTotal(items),
+        createdAt: now,
+        updatedAt: now
+      };
+
+      const cart = await FirestoreService.create<Cart>(COLLECTIONS.CARTS, cartData);
+      if (!cart || !cart.id) {
+        throw new Error('Failed to create cart');
+      }
+      return cart;
+    } catch (error) {
+      console.error('Error creating cart:', error);
+      throw new Error('Failed to create cart');
+    }
+  }
+
+  async updateCart(userId: string, items: CartItem[]): Promise<Cart> {
+    try {
+      const cart = await this.getCart(userId);
+      if (!cart) {
+        return this.createCart(userId, items);
+      }
+
+      const updatedCart: Partial<Cart> = {
+        items,
+        total: this.calculateTotal(items),
+        updatedAt: new Date()
+      };
+
+      await this.collection.doc(cart.id).update(updatedCart);
+      return { ...cart, ...updatedCart };
+    } catch (error) {
+      console.error('Error updating cart:', error);
+      throw new Error('Failed to update cart');
     }
   }
 }

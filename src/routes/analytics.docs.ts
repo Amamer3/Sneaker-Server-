@@ -1,63 +1,48 @@
 /**
- * @openapi
- * components:
- *   schemas:
- *     OverviewStats:
- *       type: object
- *       properties:
- *         totalRevenue:
- *           type: number
- *           description: Total revenue across all time
- *         totalOrders:
- *           type: number
- *           description: Total number of orders
- *         totalCustomers:
- *           type: number
- *           description: Total number of customers
- *         todayRevenue:
- *           type: number
- *           description: Revenue for today
- *         todayOrders:
- *           type: number
- *           description: Number of orders today
- *         todayNewCustomers:
- *           type: number
- *           description: Number of new customers today
- *         percentageChanges:
- *           type: object
- *           properties:
- *             revenue:
- *               type: number
- *               description: Percentage change in revenue compared to previous period
- *             orders:
- *               type: number
- *               description: Percentage change in orders compared to previous period
- *             customers:
- *               type: number
- *               description: Percentage change in new customers compared to previous period
- * 
- * paths:
- *   /api/analytics/overview:
- *     get:
- *       summary: Get overview analytics
- *       description: Returns overview statistics including revenue, orders, and customers
- *       security:
- *         - bearerAuth: []
- *       tags:
- *         - Analytics
- *       responses:
- *         200:
- *           description: Overview statistics retrieved successfully
- *           content:
- *             application/json:
- *               schema:
- *                 $ref: '#/components/schemas/OverviewStats'
- *         401:
- *           description: Unauthorized - Invalid or missing token
- *         403:
- *           description: Forbidden - User is not an admin
- *         429:
- *           description: Too Many Requests - Rate limit exceeded
+ * @swagger
+ * /analytics/overview:
+ *   get:
+ *     summary: Get overview analytics (admin only)
+ *     tags: [Analytics]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Overview analytics data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 revenue:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: number
+ *                     today:
+ *                       type: number
+ *                     growth:
+ *                       type: number
+ *                 orders:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: number
+ *                     today:
+ *                       type: number
+ *                     growth:
+ *                       type: number
+ *                 customers:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: number
+ *                     new:
+ *                       type: number
+ *                     growth:
+ *                       type: number
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
  * 
  *   /api/analytics/revenue:
  *     get:

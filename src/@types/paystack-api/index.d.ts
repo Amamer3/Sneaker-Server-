@@ -1,5 +1,5 @@
 declare module 'paystack-api' {
-  interface PaystackResponse<T> {
+  interface PaystackResponse<T = any> {
     status: boolean;
     message: string;
     data: T;
@@ -35,15 +35,15 @@ declare module 'paystack-api' {
     status: string;
     reference: string;
     amount: number;
+    gateway_response: string;
+    paid_at: string;
+    created_at: string;
+    channel: string;
     currency: string;
+    ip_address: string;
+    metadata: Record<string, any>;
     customer: PaystackCustomer;
     authorization?: PaystackAuthorization;
-    payment_method?: string;
-    metadata?: Record<string, any>;
-    gateway_response: string;
-    paid_at?: string;
-    created_at: string;
-    channel?: string;
   }
 
   interface PaystackInitializeData {
@@ -52,19 +52,19 @@ declare module 'paystack-api' {
     reference: string;
   }
 
+  interface PaystackInitializeParams {
+    amount: number;
+    email: string;
+    currency?: string;
+    reference?: string;
+    callback_url?: string;
+    metadata?: Record<string, any>;
+    channels?: string[];
+  }
+
   interface PaystackTransaction {
-    initialize(params: {
-      amount: number;
-      email: string;
-      currency?: string;
-      reference?: string;
-      callback_url?: string;
-      metadata?: Record<string, any>;
-      channels?: string[];
-    }): Promise<PaystackResponse<PaystackInitializeData>>;
-
+    initialize(params: PaystackInitializeParams): Promise<PaystackResponse<PaystackInitializeData>>;
     verify(reference: string): Promise<PaystackResponse<PaystackTransactionData>>;
-
     list(params?: {
       perPage?: number;
       page?: number;
@@ -94,11 +94,11 @@ declare module 'paystack-api' {
     fetch(email_or_code: string): Promise<PaystackResponse<PaystackCustomer>>;
   }
 
-  interface PaystackClient {
+  interface PaystackAPI {
     transaction: PaystackTransaction;
     customer: PaystackCustomerAPI;
   }
 
-  function paystack(secretKey: string): PaystackClient;
+  const paystack: (secretKey: string) => PaystackAPI;
   export = paystack;
 }

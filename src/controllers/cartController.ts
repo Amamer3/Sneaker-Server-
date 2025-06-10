@@ -42,11 +42,19 @@ export const getUserCart = async (req: AuthRequest, res: Response) => {
 
 export const addToCart = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
     const { productId, quantity = 1, size } = req.body;
+    const userId = req.user?.id; // Optional user ID
 
     if (!productId) {
       return res.status(400).json({ message: 'Product ID is required' });
+    }
+
+    // If user is not authenticated, just return the cart data
+    if (!userId) {
+      return res.json({
+        success: true,
+        item: { productId, quantity, size }
+      });
     }
 
     // Get product to verify it exists and get current price
@@ -126,5 +134,44 @@ export const processCheckout = async (req: AuthRequest, res: Response) => {
     res.status(501).json({ message: 'Checkout not implemented yet' });
   } catch (error) {
     res.status(500).json({ message: 'Error processing checkout', error });
+  }
+};
+
+export const syncCart = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { items } = req.body;
+
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ message: 'Items must be an array' });
+    }
+
+    // Get current cart
+    let cart = await cartService.getCart(userId);
+
+    // If no existing cart, create one with the provided items
+    if (!cart) {
+      cart = await cartService.createCart(userId, items);
+    } else {
+      // Merge local items with server cart
+      for (const item of items) {
+        const existingItem = cart.items.find(i => i.productId === item.productId && i.size === item.size);
+        if (existingItem) {
+          // Update quantity if item exists
+          existingItem.quantity += item.quantity;
+        } else {
+          // Add new item
+          cart.items.push(item);
+        }
+      }
+      // Update cart with merged items
+      cart = await cartService.updateCart(userId, cart.items);
+    }
+
+    const enrichedCart = await enrichCartWithProductDetails(cart);
+    res.json(enrichedCart);
+  } catch (error) {
+    console.error('Error syncing cart:', error);
+    res.status(500).json({ message: 'Error syncing cart', error });
   }
 };

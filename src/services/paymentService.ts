@@ -54,9 +54,7 @@ export const paymentService = {
       
       // Convert amount to pesewas (Paystack requires amount in smallest currency unit)
       // 1 GHS = 100 pesewas, so multiply by 100 to get the amount in pesewas
-      const amountInPesewas = Math.round(amount * 100);
-
-      // Initialize transaction with Paystack
+      const amountInPesewas = Math.round(amount * 100);      // Initialize transaction with Paystack
       const response = await paystackClient.transaction.initialize({
         amount: amountInPesewas,
         email,
@@ -66,7 +64,8 @@ export const paymentService = {
           customerId,
           ...metadata
         },
-        callback_url: process.env.PAYSTACK_CALLBACK_URL
+        callback_url: process.env.PAYSTACK_CALLBACK_URL,
+        currency: 'GHS'
       });
 
       if (!response.status) {
@@ -76,7 +75,7 @@ export const paymentService = {
       // Update order with payment reference
       await ordersCollection.doc(orderId).update({
         paymentReference: response.data.reference,
-        paymentStatus: 'pending' as PaymentStatus,
+        paymentStatus: 'pending',
         updatedAt: new Date()
       });
 
@@ -90,32 +89,35 @@ export const paymentService = {
       throw error;
     }
   },
-
   async verifyTransaction(reference: string): Promise<PaymentVerification> {
     try {
       Logger.debug('Verifying payment transaction', { reference });
 
-      const response = await paystackClient.transaction.verify({ reference });
+      const response = await paystackClient.transaction.verify(reference);
 
       if (!response.status) {
         throw new Error(response.message || 'Payment verification failed');
       }
 
-      const { metadata, amount, status } = response.data;
-      const { orderId } = metadata;
+      const { metadata = {}, amount, status } = response.data;
+      const orderId = metadata.orderId as string;
+
+      if (!orderId) {
+        throw new Error('Order ID not found in payment metadata');
+      }
 
       const paymentDetails: PaymentDetails = {
         provider: 'paystack',
         reference,
         status,
-        channel: response.data.channel,
-        paidAt: response.data.paid_at,
-        currency: response.data.currency
+        channel: response.data.channel || 'unknown',
+        paidAt: response.data.paid_at || new Date().toISOString(),
+        currency: response.data.currency || 'GHS'
       };
 
       // Update order with payment status
       await ordersCollection.doc(orderId).update({
-        paymentStatus: status === 'success' ? 'paid' : 'failed' as PaymentStatus,
+        paymentStatus: status === 'success' ? 'paid' : 'failed',
         paidAmount: amount / 100, // Convert back from pesewas to GHS
         paymentDetails,
         updatedAt: new Date()
@@ -126,14 +128,13 @@ export const paymentService = {
         reference: response.data.reference,
         amount: response.data.amount / 100,
         orderId,
-        metadata: response.data.metadata
+        metadata: metadata
       };
     } catch (error) {
       Logger.error('Error verifying payment:', error);
       throw error;
     }
-  },
-  async handleWebhook(body: Record<string, any>, signature?: string): Promise<void> {
+  },  async handleWebhook(body: Record<string, any>, signature?: string): Promise<void> {
     try {
       // Verify webhook signature if provided
       if (process.env.PAYSTACK_SECRET_KEY && signature) {
@@ -160,16 +161,22 @@ export const paymentService = {
           
         case 'charge.failed':
           // Update order status to failed
-          if (data.metadata?.orderId) {
-            await ordersCollection.doc(data.metadata.orderId).update({
-              paymentStatus: 'failed' as PaymentStatus,
+          const orderId = data.metadata?.orderId;
+          if (orderId) {
+            const paymentDetails: PaymentDetails = {
+              provider: 'paystack',
+              reference: data.reference,
+              status: 'failed',
+              channel: data.channel || 'unknown',
+              paidAt: new Date().toISOString(),
+              currency: data.currency || 'GHS'
+            };
+            
+            await ordersCollection.doc(orderId).update({
+              paymentStatus: 'failed',
               updatedAt: new Date(),
-              paymentDetails: {
-                provider: 'paystack',
-                reference: data.reference,
-                status: 'failed',
-                failureReason: data.gateway_response || 'Payment failed'
-              }
+              paymentDetails,
+              failureReason: data.gateway_response || 'Payment failed'
             });
           }
           Logger.warn('Payment failed for reference:', data.reference);
