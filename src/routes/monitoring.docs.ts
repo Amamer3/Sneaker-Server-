@@ -107,4 +107,204 @@
  *                         type: number
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
+ * 
+ * /monitoring/metrics/historical:
+ *   get:
+ *     summary: Get historical system metrics
+ *     tags: [Monitoring]
+ *     parameters:
+ *       - in: query
+ *         name: days
+ *         schema:
+ *           type: number
+ *           default: 30
+ *         description: Number of days to fetch metrics for
+ *     responses:
+ *       200:
+ *         description: Historical metrics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 timeframe:
+ *                   type: string
+ *                 startDate:
+ *                   type: string
+ *                   format: date-time
+ *                 endDate:
+ *                   type: string
+ *                   format: date-time
+ *                 metrics:
+ *                   type: object
+ *                   properties:
+ *                     cpu:
+ *                       type: object
+ *                       properties:
+ *                         average:
+ *                           type: number
+ *                         peak:
+ *                           type: number
+ *                         timestamps:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                     memory:
+ *                       type: object
+ *                       properties:
+ *                         average:
+ *                           type: number
+ *                         peak:
+ *                           type: number
+ *                         timestamps:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                     requests:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: number
+ *                         successful:
+ *                           type: number
+ *                         failed:
+ *                           type: number
+ *                         averageResponseTime:
+ *                           type: number
+ *       500:
+ *         description: Server error while fetching metrics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ * 
+ * /monitoring/alerts/thresholds:
+ *   get:
+ *     summary: Get system alert thresholds
+ *     tags: [Monitoring]
+ *     responses:
+ *       200:
+ *         description: Alert thresholds retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 cpu:
+ *                   type: object
+ *                   properties:
+ *                     warning:
+ *                       type: number
+ *                     critical:
+ *                       type: number
+ *                 memory:
+ *                   type: object
+ *                   properties:
+ *                     warning:
+ *                       type: number
+ *                     critical:
+ *                       type: number
+ *                 disk:
+ *                   type: object
+ *                   properties:
+ *                     warning:
+ *                       type: number
+ *                     critical:
+ *                       type: number
+ *                 responseTime:
+ *                   type: object
+ *                   properties:
+ *                     warning:
+ *                       type: number
+ *                     critical:
+ *                       type: number
+ *                 errorRate:
+ *                   type: object
+ *                   properties:
+ *                     warning:
+ *                       type: number
+ *                     critical:
+ *                       type: number
+ *       500:
+ *         description: Server error while fetching thresholds
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ * 
+ * /monitoring/logs:
+ *   get:
+ *     summary: Get application logs
+ *     tags: [Monitoring]
+ *     parameters:
+ *       - in: query
+ *         name: level
+ *         schema:
+ *           type: string
+ *           enum: [all, error]
+ *           default: all
+ *         description: Log level to filter by
+ *       - in: query
+ *         name: date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Date to fetch logs for (YYYY-MM-DD)
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: number
+ *           default: 100
+ *         description: Maximum number of logs to return
+ *     responses:
+ *       200:
+ *         description: Logs retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 date:
+ *                   type: string
+ *                 level:
+ *                   type: string
+ *                 count:
+ *                   type: number
+ *                 logs:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       timestamp:
+ *                         type: string
+ *                       level:
+ *                         type: string
+ *                       message:
+ *                         type: string
+ *                       raw:
+ *                         type: string
+ *       404:
+ *         description: No logs found for the specified date
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *       500:
+ *         description: Server error while fetching logs
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
  */

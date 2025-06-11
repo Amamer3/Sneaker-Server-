@@ -1,11 +1,12 @@
 import { Request, Response } from 'express';
 import { AnalyticsService } from '../services/analyticsService';
 import { TimeFrame } from '../types/analytics';
+import { ValidatedAnalyticsQuery } from '../middleware/validation/analytics';
 
 const analyticsService = new AnalyticsService();
 
 // Overview Analytics
-export const getOverviewStats = async (req: Request, res: Response) => {
+export const getOverviewStats = async (req: Request & { analyticsQuery?: ValidatedAnalyticsQuery }, res: Response) => {
   try {
     // Validate user is authenticated and is admin (this is a backup check)
     const user = (req as any).user;
@@ -17,7 +18,8 @@ export const getOverviewStats = async (req: Request, res: Response) => {
       return;
     }
 
-    const stats = await analyticsService.getOverviewStats();
+    const { startDate, endDate } = req.analyticsQuery || {};
+    const stats = await analyticsService.getOverviewStats(startDate, endDate);
     res.json(stats);
   } catch (error) {
     console.error('Error getting overview stats:', error);
@@ -36,12 +38,9 @@ export const getOverviewStats = async (req: Request, res: Response) => {
 };
 
 // Revenue Analytics
-export const getRevenueStats = async (req: Request, res: Response) => {
+export const getRevenueStats = async (req: Request & { analyticsQuery?: ValidatedAnalyticsQuery }, res: Response) => {
   try {
-    const timeframe = (req.query.timeframe as TimeFrame) || 'monthly';
-    const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
-    const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
-    
+    const { timeframe = 'monthly', startDate, endDate } = req.analyticsQuery || {};
     const stats = await analyticsService.getRevenueStats(timeframe, startDate, endDate);
     res.json(stats);
   } catch (error) {
@@ -97,11 +96,17 @@ export const getLowStockProducts = async (req: Request, res: Response) => {
 
 export const getProductsByCategory = async (req: Request, res: Response) => {
   try {
-    const stats = await analyticsService.getProductStats();
-    res.json(stats.categoryDistribution);
+    const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
+    const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
+
+    const stats = await analyticsService.getProductsByCategory(startDate, endDate);
+    res.json(stats);
   } catch (error) {
     console.error('Error getting products by category:', error);
-    res.status(500).json({ error: 'Failed to retrieve product category distribution' });
+    res.status(500).json({ 
+      error: 'Failed to retrieve product category statistics',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 };
 

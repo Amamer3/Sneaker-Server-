@@ -1,77 +1,122 @@
 import { Request, Response } from 'express';
-import { readFileSync } from 'fs';
-import { join } from 'path';
 import Logger from '../utils/logger';
+import path from 'path';
+import fs from 'fs/promises';
 
 export const getHistoricalMetrics = async (req: Request, res: Response) => {
   try {
-    const { startTime, endTime, interval } = req.query;
-    const startDate = new Date(startTime as string);
-    const endDate = new Date(endTime as string);
+    // Get metrics from the last 30 days by default
+    const days = parseInt(req.query.days as string) || 30;
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
 
-    // Generate sample metrics for now
-    const metrics = generateHistoricalMetrics(startDate, endDate, interval as string);
+    // In a real implementation, you would fetch this from a time series database
+    // For now, we'll return some sample data
+    const metrics = {
+      timeframe: `${days} days`,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      metrics: {
+        cpu: {
+          average: 45.5,
+          peak: 78.2,
+          timestamps: []
+        },
+        memory: {
+          average: 62.3,
+          peak: 85.1,
+          timestamps: []
+        },
+        requests: {
+          total: 15234,
+          successful: 14891,
+          failed: 343,
+          averageResponseTime: 182
+        }
+      }
+    };
+
     res.json(metrics);
   } catch (error) {
-    console.error('Error fetching historical metrics:', error);
-    res.status(500).json({ error: 'Failed to retrieve historical metrics' });
+    Logger.error('Error fetching historical metrics:', error);
+    res.status(500).json({ error: 'Failed to fetch historical metrics' });
+  }
+};
+
+export const getAlertThresholds = async (req: Request, res: Response) => {
+  try {
+    // In a real implementation, these would be stored in a database and be configurable
+    const thresholds = {
+      cpu: {
+        warning: 70,
+        critical: 90
+      },
+      memory: {
+        warning: 80,
+        critical: 95
+      },
+      disk: {
+        warning: 85,
+        critical: 95
+      },
+      responseTime: {
+        warning: 1000, // ms
+        critical: 3000 // ms
+      },
+      errorRate: {
+        warning: 5, // percentage
+        critical: 10 // percentage
+      }
+    };
+
+    res.json(thresholds);
+  } catch (error) {
+    Logger.error('Error fetching alert thresholds:', error);
+    res.status(500).json({ error: 'Failed to fetch alert thresholds' });
   }
 };
 
 export const getLogs = async (req: Request, res: Response) => {
   try {
-    const { limit = '100', offset = '0' } = req.query;
-    const currentDate = new Date().toISOString().split('T')[0];
-    const logPath = join(__dirname, '..', '..', 'logs', `all-${currentDate}.log`);
+    const level = req.query.level as string || 'all';
+    const date = req.query.date as string || new Date().toISOString().split('T')[0];
+    const limit = parseInt(req.query.limit as string) || 100;
+
+    const logsDir = path.join(process.cwd(), 'logs');
+    const logFileName = level === 'error' ? `error-${date}.log` : `all-${date}.log`;
+    const logFilePath = path.join(logsDir, logFileName);
 
     try {
-      const logs = readFileSync(logPath, 'utf8')
+      const logContent = await fs.readFile(logFilePath, 'utf-8');
+      const logs = logContent
         .split('\n')
         .filter(Boolean)
         .map(line => {
           try {
             return JSON.parse(line);
           } catch {
-            return { timestamp: new Date(), level: 'error', message: line };
+            return { raw: line };
           }
         })
-        .slice(Number(offset), Number(offset) + Number(limit));
+        .slice(-limit);
 
       res.json({
-        logs,
-        total: logs.length,
-        hasMore: logs.length === Number(limit)
+        date,
+        level,
+        count: logs.length,
+        logs
       });
-    } catch (readError) {
-      // If log file doesn't exist, return empty logs
-      res.json({
-        logs: [],
-        total: 0,
-        hasMore: false
-      });
+    } catch (error) {
+      // If the log file doesn't exist or can't be read
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        res.status(404).json({ error: `No logs found for date: ${date}` });
+      } else {
+        throw error;
+      }
     }
   } catch (error) {
-    console.error('Error fetching logs:', error);
-    res.status(500).json({ error: 'Failed to retrieve logs' });
+    Logger.error('Error fetching logs:', error);
+    res.status(500).json({ error: 'Failed to fetch logs' });
   }
 };
-
-function generateHistoricalMetrics(startDate: Date, endDate: Date, interval: string) {
-  const metrics = [];
-  const intervalMs = interval === 'hour' ? 3600000 : 86400000;
-  let current = startDate.getTime();
-
-  while (current <= endDate.getTime()) {
-    metrics.push({
-      timestamp: new Date(current).toISOString(),
-      cpu: Math.random() * 100,
-      memory: Math.random() * 100,
-      requests: Math.floor(Math.random() * 1000),
-      errors: Math.floor(Math.random() * 10),
-      responseTime: Math.random() * 500
-    });
-    current += intervalMs;
-  }
-
-  return metrics;
-}

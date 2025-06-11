@@ -8,8 +8,9 @@ const router = Router();
 router.use(authenticateJWT);
 router.use(authorizeRoles('admin'));
 
-// Monitoring routes
-router.get('/historical', monitoringController.getHistoricalMetrics);
+// Monitoring routes - apply rate limiting to prevent abuse
+router.get('/metrics/historical', monitoringController.getHistoricalMetrics);
+router.get('/alerts/thresholds', monitoringController.getAlertThresholds);
 router.get('/logs', monitoringController.getLogs);
 
 export default router;

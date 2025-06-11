@@ -46,6 +46,11 @@ router.get('/products',
   analyticsController.getProductStats
 );
 
+router.get('/products/by-category', 
+  cacheControl(CACHE_SETTINGS.products),
+  analyticsController.getProductsByCategory
+);
+
 router.get('/products/top-selling', 
   cacheControl(CACHE_SETTINGS.products),
   analyticsController.getTopSellingProducts
@@ -54,11 +59,6 @@ router.get('/products/top-selling',
 router.get('/products/low-stock', 
   cacheControl(CACHE_SETTINGS.products),
   analyticsController.getLowStockProducts
-);
-
-router.get('/products/by-category', 
-  cacheControl(CACHE_SETTINGS.products),
-  analyticsController.getProductsByCategory
 );
 
 // Customer Analytics

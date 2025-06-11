@@ -91,13 +91,9 @@ export const validateAnalyticsQuery = (
         details: result.error.errors
       });
       return;
-    }
-
-    // Store validated data in a custom property
-    req.analyticsQuery = result.data;
-
-    // Convert dates to ISO strings for query params
+    }    // Convert dates to strings and ensure all values are strings
     const queryParams: Record<string, string> = {};
+    
     Object.entries(result.data).forEach(([key, value]) => {
       if (value instanceof Date) {
         queryParams[key] = value.toISOString().split('T')[0];
@@ -108,6 +104,9 @@ export const validateAnalyticsQuery = (
 
     // Update query params with string values
     req.query = queryParams;
+    
+    // Store validated data in a custom property
+    req.analyticsQuery = result.data;
     next();
   } catch (error) {
     next(error);
