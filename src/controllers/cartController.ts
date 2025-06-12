@@ -61,10 +61,35 @@ const emptyCart: EnrichedCart = {
 export const getUserCart = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
+    const guestCart = req.body.guestCart as GuestCart | undefined;
     
-    // Handle unauthenticated requests with an empty cart
+    // Handle unauthenticated requests
     if (!userId) {
-      return res.json(emptyCart);
+      // If guest cart data is provided, validate and return it
+      if (guestCart && Array.isArray(guestCart.items)) {
+        // Enrich guest cart items with product details
+        const enrichedItems = await Promise.all(
+          guestCart.items.map(async (item) => {
+            const product = await productService.getProduct(item.productId);
+            return {
+              ...item,
+              product: product || null
+            };
+          })
+        );
+
+        return res.json({
+          items: enrichedItems,
+          total: enrichedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+          message: 'Guest cart retrieved successfully'
+        });
+      }
+
+      // Return empty cart if no guest cart data
+      return res.json({
+        ...emptyCart,
+        message: 'Empty guest cart'
+      });
     }
 
     try {
@@ -72,16 +97,25 @@ export const getUserCart = async (req: AuthRequest, res: Response) => {
       
       if (!cart) {
         // Return empty cart if none exists
-        return res.json(emptyCart);
+        return res.json({
+          ...emptyCart,
+          message: 'No cart found for user'
+        });
       }
 
       const enrichedCart = await enrichCartWithProductDetails(cart);
-      return res.json(enrichedCart || emptyCart);
+      return res.json({
+        ...enrichedCart,
+        message: 'Cart retrieved successfully'
+      });
 
     } catch (cartError) {
       console.error('Error getting or enriching cart:', cartError);
       // Return empty cart in case of any error
-      return res.json(emptyCart);
+      return res.json({
+        ...emptyCart,
+        message: 'Error retrieving cart'
+      });
     }
   } catch (error) {
     console.error('Error in getUserCart:', error);
@@ -102,13 +136,14 @@ export const addToCart = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Product ID is required' });
     }
 
-    // If user is not authenticated, return data for localStorage
-    if (!userId) {
-      const product = await productService.getProduct(productId);
-      if (!product) {
-        return res.status(404).json({ message: 'Product not found' });
-      }
+    // Get product to verify it exists and get current price
+    const product = await productService.getProduct(productId);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
 
+    // If user is not authenticated, return data to be stored in localStorage
+    if (!userId) {
       return res.json({
         success: true,
         item: { 
@@ -118,28 +153,27 @@ export const addToCart = async (req: AuthRequest, res: Response) => {
           price: product.price,
           name: product.name,
           image: product.images?.[0] // First image as preview
-        }
+        },
+        message: 'Item added to guest cart'
       });
     }
 
-    // If there's a guest cart and user just logged in, merge it
+    // If there's a guest cart and user is logged in, merge it first
     if (guestCart && Array.isArray(guestCart.items) && guestCart.items.length > 0) {
       try {
         const cart = await cartService.convertGuestCartToStoredCart(userId, guestCart);
         const enrichedCart = await enrichCartWithProductDetails(cart);
-        return res.json(enrichedCart);
+        return res.json({
+          ...enrichedCart,
+          message: 'Guest cart merged and item added'
+        });
       } catch (error) {
         console.error('Error converting guest cart:', error);
         // Continue with normal flow if conversion fails
       }
     }
 
-    // Get product to verify it exists and get current price
-    const product = await productService.getProduct(productId);
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
-    }
-
+    // Add item to user's cart
     const cart = await cartService.addToCart(
       userId,
       productId,
@@ -149,9 +183,16 @@ export const addToCart = async (req: AuthRequest, res: Response) => {
     );
 
     const enrichedCart = await enrichCartWithProductDetails(cart);
-    res.json(enrichedCart);
+    res.json({
+      ...enrichedCart,
+      message: 'Item added to cart successfully'
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Error adding to cart', error });
+    console.error('Error in addToCart:', error);
+    res.status(500).json({ 
+      message: 'Error adding to cart',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 };
 
