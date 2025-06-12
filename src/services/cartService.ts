@@ -9,6 +9,9 @@ export class CartService {
 
   // Convert a guest cart to a stored cart
   async convertGuestCartToStoredCart(userId: string, guestCart: GuestCart): Promise<Cart> {
+    // First check if user already has a cart
+    const existingCart = await this.getCart(userId);
+    
     const items = await Promise.all(
       guestCart.items.map(async (item) => {
         // Validate product and get current price
@@ -19,13 +22,19 @@ export class CartService {
         const productData = product.data();
         return {
           ...item,
-          price: productData?.price ?? 0, // Use current price from database or default to 0
+          price: productData?.price ?? 0, // Use current price from database
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now()
         };
       })
     );
 
+    if (existingCart) {
+      // Merge guest cart items with existing cart
+      return this.updateCart(userId, [...existingCart.items, ...items]);
+    }
+
+    // Create new cart if user doesn't have one
     return this.createCart(userId, items);
   }
 
@@ -81,6 +90,15 @@ export class CartService {
   }
   async addToCart(userId: string, productId: string, price: number, quantity: number = 1, size?: string): Promise<Cart> {
     try {
+      // First verify that the product exists
+      const productDoc = await this.productsCollection.doc(productId).get();
+      if (!productDoc.exists) {
+        throw new Error(`Product ${productId} not found`);
+      }
+      const productData = productDoc.data();
+      // Use the current price from the database to ensure price accuracy
+      const currentPrice = productData?.price ?? price;
+
       let cart = await this.getCart(userId);
       const now = Timestamp.now();
 
@@ -89,7 +107,7 @@ export class CartService {
           productId,
           size,
           quantity,
-          price,
+          price: currentPrice,
           createdAt: now,
           updatedAt: now
         }]);
@@ -110,6 +128,7 @@ export class CartService {
         updatedItems[existingItemIndex] = {
           ...updatedItems[existingItemIndex],
           quantity: updatedItems[existingItemIndex].quantity + quantity,
+          price: currentPrice, // Update to current price
           updatedAt: now
         };
       } else {
@@ -117,7 +136,7 @@ export class CartService {
           productId,
           size,
           quantity,
-          price,
+          price: currentPrice,
           createdAt: now,
           updatedAt: now
         };
