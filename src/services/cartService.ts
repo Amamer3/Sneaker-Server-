@@ -1,10 +1,33 @@
-import { Cart, CartItem, StoredCartItem } from '../models/Cart';
+import { Cart, CartItem, StoredCartItem, GuestCart } from '../models/Cart';
 import { FirestoreService } from '../utils/firestore';
 import { COLLECTIONS } from '../constants/collections';
 import { Timestamp } from 'firebase-admin/firestore';
 
 export class CartService {
   private collection = FirestoreService.collection(COLLECTIONS.CARTS);
+  private productsCollection = FirestoreService.collection(COLLECTIONS.PRODUCTS);
+
+  // Convert a guest cart to a stored cart
+  async convertGuestCartToStoredCart(userId: string, guestCart: GuestCart): Promise<Cart> {
+    const items = await Promise.all(
+      guestCart.items.map(async (item) => {
+        // Validate product and get current price
+        const product = await this.productsCollection.doc(item.productId).get();
+        if (!product.exists) {
+          throw new Error(`Product ${item.productId} not found`);
+        }
+        const productData = product.data();
+        return {
+          ...item,
+          price: productData?.price ?? 0, // Use current price from database or default to 0
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now()
+        };
+      })
+    );
+
+    return this.createCart(userId, items);
+  }
 
   private toFirestoreCart(cart: Partial<Cart>): Partial<Cart> {
     return {
@@ -108,7 +131,7 @@ export class CartService {
       };
 
       const firestoreUpdates = this.toFirestoreCart(updates);
-      await this.collection.doc(cart.id).update(firestoreUpdates);
+      await this.collection.doc(cart.id).update(firestoreUpdates as any);
 
       return this.fromFirestoreCart({
         ...cart,
@@ -128,25 +151,33 @@ export class CartService {
       const itemIndex = cart.items.findIndex(item => item.productId === productId);
       if (itemIndex === -1) return null;
 
-      const now = new Date();
+      const now = Timestamp.now();
+      const updatedItems = [...cart.items];
 
       if (quantity <= 0) {
-        cart.items.splice(itemIndex, 1);
+        updatedItems.splice(itemIndex, 1);
       } else {
-        cart.items[itemIndex].quantity = quantity;
-        cart.items[itemIndex].updatedAt = now;
+        updatedItems[itemIndex] = {
+          ...updatedItems[itemIndex],
+          quantity,
+          updatedAt: now
+        };
       }
 
-      cart.total = this.calculateTotal(cart.items);
-      cart.updatedAt = now;
-
-      await FirestoreService.update<Cart>(COLLECTIONS.CARTS, cart.id, {
-        items: cart.items,
-        total: cart.total,
+      const updates = {
+        items: updatedItems,
+        total: this.calculateTotal(updatedItems),
         updatedAt: now
-      });
+      };
 
-      return cart;
+      const firestoreUpdates = this.toFirestoreCart(updates);
+      await this.collection.doc(cart.id).update(firestoreUpdates);
+
+      return this.fromFirestoreCart({
+        ...cart,
+        ...updates,
+        id: cart.id
+      });
     } catch (error) {
       console.error('Error updating cart item quantity:', error);
       throw new Error('Failed to update cart item quantity');
@@ -160,12 +191,13 @@ export class CartService {
     try {
       const cart = await this.getCart(userId);
       if (cart) {
-        const now = new Date();
-        await FirestoreService.update<Cart>(COLLECTIONS.CARTS, cart.id, {
+        const updates = {
           items: [],
           total: 0,
-          updatedAt: now
-        });
+          updatedAt: Timestamp.now()
+        };
+        const firestoreUpdates = this.toFirestoreCart(updates);
+        await this.collection.doc(cart.id).update(firestoreUpdates);
       }
     } catch (error) {
       console.error('Error clearing cart:', error);
@@ -211,14 +243,25 @@ export class CartService {
         return this.createCart(userId, items);
       }
 
+      const now = Timestamp.now();
       const updatedCart: Partial<Cart> = {
-        items,
+        items: items.map(item => ({
+          ...item,
+          createdAt: item.createdAt || now,
+          updatedAt: now
+        })),
         total: this.calculateTotal(items),
-        updatedAt: new Date()
+        updatedAt: now
       };
 
-      await this.collection.doc(cart.id).update(updatedCart);
-      return { ...cart, ...updatedCart };
+      const firestoreUpdates = this.toFirestoreCart(updatedCart);
+      await this.collection.doc(cart.id).update(firestoreUpdates);
+      
+      return this.fromFirestoreCart({
+        ...cart,
+        ...updatedCart,
+        id: cart.id
+      });
     } catch (error) {
       console.error('Error updating cart:', error);
       throw new Error('Failed to update cart');

@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { CartService } from '../services/cartService';
 import * as productService from '../services/productService';
 import { AuthRequest } from '../middleware/auth';
-import { Cart, CartItem } from '../models/Cart';
+import { Cart, CartItem, GuestCart } from '../models/Cart';
 import { Product } from '../models/Product';
 
 const cartService = new CartService();
@@ -96,17 +96,42 @@ export const addToCart = async (req: AuthRequest, res: Response) => {
   try {
     const { productId, quantity = 1, size } = req.body;
     const userId = req.user?.id; // Optional user ID
+    const guestCart = req.body.guestCart as GuestCart | undefined; // Guest cart data from localStorage
 
     if (!productId) {
       return res.status(400).json({ message: 'Product ID is required' });
     }
 
-    // If user is not authenticated, just return the cart data
+    // If user is not authenticated, return data for localStorage
     if (!userId) {
+      const product = await productService.getProduct(productId);
+      if (!product) {
+        return res.status(404).json({ message: 'Product not found' });
+      }
+
       return res.json({
         success: true,
-        item: { productId, quantity, size }
+        item: { 
+          productId, 
+          quantity, 
+          size,
+          price: product.price,
+          name: product.name,
+          image: product.images?.[0] // First image as preview
+        }
       });
+    }
+
+    // If there's a guest cart and user just logged in, merge it
+    if (guestCart && Array.isArray(guestCart.items) && guestCart.items.length > 0) {
+      try {
+        const cart = await cartService.convertGuestCartToStoredCart(userId, guestCart);
+        const enrichedCart = await enrichCartWithProductDetails(cart);
+        return res.json(enrichedCart);
+      } catch (error) {
+        console.error('Error converting guest cart:', error);
+        // Continue with normal flow if conversion fails
+      }
     }
 
     // Get product to verify it exists and get current price
@@ -140,6 +165,7 @@ export const updateCartItem = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Quantity must be a number' });
     }
 
+    // itemId from params is actually the productId for the cart item
     const cart = await cartService.updateCartItemQuantity(userId, itemId, quantity);
     if (!cart) {
       return res.status(404).json({ message: 'Cart item not found' });
@@ -157,6 +183,7 @@ export const removeFromCart = async (req: AuthRequest, res: Response) => {
     const userId = req.user!.id;
     const { itemId } = req.params;
 
+    // itemId from params is actually the productId for the cart item
     const cart = await cartService.removeFromCart(userId, itemId);
     if (!cart) {
       return res.status(404).json({ message: 'Cart item not found' });
@@ -192,38 +219,28 @@ export const processCheckout = async (req: AuthRequest, res: Response) => {
 export const syncCart = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { items } = req.body;
+    const guestCart = req.body.guestCart as GuestCart;
 
-    if (!Array.isArray(items)) {
-      return res.status(400).json({ message: 'Items must be an array' });
+    if (!guestCart || !Array.isArray(guestCart.items)) {
+      return res.status(400).json({ message: 'Valid guest cart is required' });
     }
 
-    // Get current cart
-    let cart = await cartService.getCart(userId);
-
-    // If no existing cart, create one with the provided items
-    if (!cart) {
-      cart = await cartService.createCart(userId, items);
-    } else {
-      // Merge local items with server cart
-      for (const item of items) {
-        const existingItem = cart.items.find(i => i.productId === item.productId && i.size === item.size);
-        if (existingItem) {
-          // Update quantity if item exists
-          existingItem.quantity += item.quantity;
-        } else {
-          // Add new item
-          cart.items.push(item);
-        }
-      }
-      // Update cart with merged items
-      cart = await cartService.updateCart(userId, cart.items);
+    try {
+      const cart = await cartService.convertGuestCartToStoredCart(userId, guestCart);
+      const enrichedCart = await enrichCartWithProductDetails(cart);
+      return res.json(enrichedCart);
+    } catch (error) {
+      console.error('Error syncing guest cart:', error);
+      return res.status(400).json({ 
+        message: 'Failed to sync cart',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
-
-    const enrichedCart = await enrichCartWithProductDetails(cart);
-    res.json(enrichedCart);
   } catch (error) {
-    console.error('Error syncing cart:', error);
-    res.status(500).json({ message: 'Error syncing cart', error });
+    console.error('Error in syncCart:', error);
+    res.status(500).json({ 
+      message: 'Error processing request',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 };
