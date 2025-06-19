@@ -61,7 +61,18 @@ const emptyCart: EnrichedCart = {
 export const getUserCart = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const guestCart = req.body.guestCart as GuestCart | undefined;
+    // For GET requests, we don't expect guestCart data since it's typically stored in localStorage
+    // The frontend should handle guest cart separately
+    let guestCart: GuestCart | undefined;
+    
+    try {
+      if (req.query.guestCart && typeof req.query.guestCart === 'string') {
+        guestCart = JSON.parse(req.query.guestCart) as GuestCart;
+      }
+    } catch (parseError) {
+      console.warn('Failed to parse guestCart from query:', parseError);
+      guestCart = undefined;
+    }
     
     // Handle unauthenticated requests
     if (!userId) {

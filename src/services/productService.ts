@@ -241,7 +241,7 @@ export async function getProductById(id: string): Promise<Product | null> {
 }
 
 // Alias for backward compatibility
-// Remove duplicate getProduct declaration since it's already defined below
+// This comment has been removed since getProduct is defined below
 
 export async function updateProduct(id: string, data: Partial<Product>): Promise<Product | null> {
   const docRef = productsCollection.doc(id);
