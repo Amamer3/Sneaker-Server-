@@ -1,8 +1,12 @@
-import { FirestoreService } from '../utils/firestore';
+import { FirestoreService } from '../config/firebase';
 import { COLLECTIONS } from '../constants/collections';
-import { Product, ProductImage } from '../models/Product';
+import { Product, ProductImage, ProductVariant, ProductSEO } from '../models/Product';
 import { cacheKey, getCache, setCache, clearCache } from '../utils/cache';
 import { CollectionReference, Query, DocumentData } from '@google-cloud/firestore';
+import { InventoryService } from './inventoryService';
+
+const inventoryService = new InventoryService();
+import { admin } from '../config/firebase';
 
 interface PaginatedResponse<T> {
   items: T[];
@@ -80,6 +84,7 @@ const baseProductData: Omit<Product, 'id'> = {
   inStock: true,
   stock: 0,
   featured: false,
+  status: 'active',
   createdAt: new Date(),
   updatedAt: new Date()
 };
@@ -88,7 +93,7 @@ export async function invalidateCache(): Promise<void> {
   await clearCache('products:*');
 }
 
-export async function createProduct(data: Partial<Product>): Promise<Product> {
+export async function createProduct(data: Partial<Product>, createdBy?: string): Promise<Product> {
   const now = new Date();
   
   // Ensure images array is properly structured
@@ -96,13 +101,39 @@ export async function createProduct(data: Partial<Product>): Promise<Product> {
     id: image.id || `img-${index}`,
     url: image.url,
     order: image.order || index,
-    publicId: image.publicId
+    publicId: image.publicId,
+    alt: image.alt || data.name || 'Product image'
   }));
+
+  // Generate SEO slug if not provided
+  const seo: ProductSEO = {
+    slug: data.seo?.slug || generateSlug(data.name || ''),
+    metaTitle: data.seo?.metaTitle || data.name,
+    metaDescription: data.seo?.metaDescription || data.description?.substring(0, 160),
+    keywords: data.seo?.keywords || generateKeywords(data)
+  };
+
+  // Process variants if provided
+  const variants: ProductVariant[] = data.variants || data.sizes?.map(size => ({
+    size,
+    stock: data.stock || 0,
+    sku: `${data.name?.replace(/\s+/g, '-').toLowerCase()}-${size}`.substring(0, 50)
+  })) || [];
 
   const product: Omit<Product, 'id'> = {
     ...baseProductData,
     ...data,
     images,
+    variants,
+    seo,
+    status: data.status || 'active',
+    lowStockThreshold: data.lowStockThreshold || 10,
+    rating: 0,
+    reviewCount: 0,
+    totalSold: 0,
+    views: 0,
+    wishlistCount: 0,
+    searchTokens: generateSearchTokens(data.name || '', data.brand || '', data.category || '', data.tags),
     createdAt: now,
     updatedAt: now
   };
@@ -110,6 +141,18 @@ export async function createProduct(data: Partial<Product>): Promise<Product> {
   const docRef = await productsCollection.add(product);
   const productWithId = { ...product, id: docRef.id };
   await docRef.update({ id: docRef.id });
+
+  // Initialize inventory for the product
+  if (createdBy && (data.stock || 0) > 0) {
+    await inventoryService.updateStock(
+      docRef.id,
+      data.stock || 0,
+      'restock',
+      createdBy,
+      'main',
+      'Initial stock for new product'
+    );
+  }
 
   // Clear cache after creating new product
   await clearCache('products:*');
@@ -404,4 +447,176 @@ export async function addProductReview(
 
   const docRef = await reviewsCollection.add(review);
   return { ...review, id: docRef.id };
+}
+
+// Helper function to generate search tokens
+function generateSearchTokens(name: string, brand: string, category: string, tags?: string[]): string[] {
+  const tokens = new Set<string>();
+  
+  // Add individual words from name, brand, category, and tags
+  const allText = [name, brand, category, ...(tags || [])]
+    .join(' ')
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(word => word.length > 2);
+  
+  allText.forEach(word => {
+    tokens.add(word);
+    // Add partial matches
+    for (let i = 3; i <= word.length; i++) {
+      tokens.add(word.substring(0, i));
+    }
+  });
+  
+  return Array.from(tokens);
+}
+
+// Helper function to generate SEO slug
+function generateSlug(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9 -]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .trim()
+    .substring(0, 60);
+}
+
+// Helper function to generate SEO keywords
+function generateKeywords(data: Partial<Product>): string[] {
+  const keywords = new Set<string>();
+  
+  if (data.name) {
+    keywords.add(data.name.toLowerCase());
+    data.name.split(' ').forEach(word => {
+      if (word.length > 3) keywords.add(word.toLowerCase());
+    });
+  }
+  
+  if (data.brand) keywords.add(data.brand.toLowerCase());
+  if (data.category) keywords.add(data.category.toLowerCase());
+  if (data.subcategory) keywords.add(data.subcategory.toLowerCase());
+  if (data.gender) keywords.add(data.gender);
+  if (data.color) keywords.add(data.color.toLowerCase());
+  if (data.material) keywords.add(data.material.toLowerCase());
+  
+  if (data.tags) {
+    data.tags.forEach(tag => keywords.add(tag.toLowerCase()));
+  }
+  
+  // Add common sneaker-related keywords
+  keywords.add('sneakers');
+  keywords.add('shoes');
+  keywords.add('footwear');
+  
+  return Array.from(keywords).slice(0, 20); // Limit to 20 keywords
+}
+
+// Track product view
+export async function trackProductView(productId: string, userId?: string): Promise<void> {
+  try {
+    const productRef = productsCollection.doc(productId);
+    await productRef.update({
+      views: admin.firestore.FieldValue.increment(1),
+      updatedAt: admin.firestore.Timestamp.now()
+    });
+    
+    // Track user behavior if userId provided
+    if (userId) {
+      // This would integrate with analytics service
+      console.log(`User ${userId} viewed product ${productId}`);
+    }
+  } catch (error) {
+    console.error('Error tracking product view:', error);
+  }
+}
+
+// Update product rating
+export async function updateProductRating(productId: string, newRating: number, reviewCount: number): Promise<void> {
+  try {
+    await productsCollection.doc(productId).update({
+      rating: newRating,
+      reviewCount,
+      updatedAt: admin.firestore.Timestamp.now()
+    });
+    
+    await invalidateCache();
+  } catch (error) {
+    console.error('Error updating product rating:', error);
+    throw new Error('Failed to update product rating');
+  }
+}
+
+// Update product sales count
+export async function updateProductSales(productId: string, quantity: number): Promise<void> {
+  try {
+    await productsCollection.doc(productId).update({
+      totalSold: admin.firestore.FieldValue.increment(quantity),
+      updatedAt: admin.firestore.Timestamp.now()
+    });
+  } catch (error) {
+    console.error('Error updating product sales:', error);
+  }
+}
+
+// Update wishlist count
+export async function updateWishlistCount(productId: string, increment: boolean): Promise<void> {
+  try {
+    await productsCollection.doc(productId).update({
+      wishlistCount: admin.firestore.FieldValue.increment(increment ? 1 : -1),
+      updatedAt: admin.firestore.Timestamp.now()
+    });
+  } catch (error) {
+    console.error('Error updating wishlist count:', error);
+  }
+}
+
+// Get products by status
+export async function getProductsByStatus(status: Product['status'], limit: number = 50): Promise<Product[]> {
+  try {
+    const cacheKeyStr = cacheKey('products', { status, limit: limit.toString() });
+    const cached = await getCache<Product[]>(cacheKeyStr);
+    if (cached) return cached;
+
+    const snapshot = await productsCollection
+      .where('status', '==', status)
+      .limit(limit)
+      .get();
+
+    const products = snapshot.docs.map(transformProductData);
+    await setCache(cacheKeyStr, products, 300); // 5 minutes
+    
+    return products;
+  } catch (error) {
+    console.error('Error getting products by status:', error);
+    throw new Error('Failed to get products by status');
+  }
+}
+
+// Get trending products (high views, recent sales)
+export async function getTrendingProducts(limit: number = 12): Promise<Product[]> {
+  try {
+    const cacheKeyStr = cacheKey('products', { type: 'trending', limit: limit.toString() });
+    const cached = await getCache<Product[]>(cacheKeyStr);
+    if (cached) return cached;
+
+    // Get products with high views in the last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const snapshot = await productsCollection
+      .where('status', '==', 'active')
+      .where('updatedAt', '>=', admin.firestore.Timestamp.fromDate(thirtyDaysAgo))
+      .orderBy('views', 'desc')
+      .limit(limit)
+      .get();
+
+    const products = snapshot.docs.map(transformProductData);
+    await setCache(cacheKeyStr, products, 600); // 10 minutes
+    
+    return products;
+  } catch (error) {
+    console.error('Error getting trending products:', error);
+    throw new Error('Failed to get trending products');
+  }
 }

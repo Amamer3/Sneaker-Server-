@@ -1,5 +1,7 @@
-import { firestore } from '../config/firebase';
+import { admin } from '../config/firebase';
 import { COLLECTIONS, CollectionName, SUB_COLLECTIONS, SubCollectionName } from '../constants/collections';
+
+const firestore = admin.firestore();
 
 /**
  * Utility class to handle Firestore operations with type safety and consistent collection access

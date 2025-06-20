@@ -54,7 +54,9 @@ export const createOrder = async (req: AuthRequest, res: Response, next: NextFun
       name: userDetails.name,
       email: userDetails.email,
       phone: userDetails.phone,
-      address: cleanedAddress
+      address: cleanedAddress,
+      method: 'standard' as const,
+      cost: 0
     };
 
     // Calculate total
@@ -68,21 +70,41 @@ export const createOrder = async (req: AuthRequest, res: Response, next: NextFun
       cleanedAddress.state,
       cleanedAddress.country
     ].filter(Boolean);
-    const customerName = addressParts[0] || 'Unknown Customer';    const order = await orderService.createOrder({
+    const customerName = addressParts[0] || 'Unknown Customer';
+
+    const order = await orderService.createOrder({
       userId,
       items: cleanedItems,
+      orderNumber: `ORD-${Date.now()}`,
+      subtotal: calculatedTotal,
+      tax: 0,
+      taxRate: 0,
+      shippingCost: 0,
+      totalDiscount: 0,
       total: total || calculatedTotal,
       totalAmount: total || calculatedTotal,
+      currency: 'USD',
       shippingAddress: cleanedAddress,
       status: 'pending',
+      paymentStatus: 'pending',
       shipping: shippingInfo,
+      payment: {
+        method: 'paystack',
+        status: 'pending',
+        amount: total || calculatedTotal,
+        currency: 'USD'
+      },
       user: {
         id: userId,
         email: userDetails.email,
         name: userDetails.name
       },
+      priority: 'normal',
+      source: 'web',
       paymentMethod: 'paystack'
-    });if (!order) {
+    });
+
+    if (!order) {
       throw new CustomError('Failed to create order', 500);
     }
 

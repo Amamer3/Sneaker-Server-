@@ -21,5 +21,24 @@ firestore.settings({
   ignoreUndefinedProperties: true
 });
 
+// FirestoreService class for database operations
+export class FirestoreService {
+  static collection(name: string) {
+    return firestore.collection(name);
+  }
+
+  static doc(path: string) {
+    return firestore.doc(path);
+  }
+
+  static batch() {
+    return firestore.batch();
+  }
+
+  static runTransaction(updateFunction: any) {
+    return firestore.runTransaction(updateFunction);
+  }
+}
+
 export { admin, firestore };
 

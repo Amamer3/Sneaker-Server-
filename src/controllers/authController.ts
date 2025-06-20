@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import * as authService from '../services/authService';
 import { AuthRequest } from '../middleware/auth';
-import admin from 'firebase-admin';
-import { FirestoreService } from '../utils/firestore';
+import { admin } from '../config/firebase';
+import { FirestoreService } from '../config/firebase';
 import { COLLECTIONS } from '../constants/collections';
 
 const usersCollection = FirestoreService.collection(COLLECTIONS.USERS);
@@ -19,7 +19,13 @@ export const register = async (req: Request, res: Response, next: NextFunction):
 // Adjust `login` method to ensure compatibility with `RequestHandler`
 export const login = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const data = await authService.login(req.body);
+    const { email, password } = req.body;
+    const deviceInfo = {
+      userAgent: req.get('User-Agent'),
+      ipAddress: req.ip,
+      deviceType: req.get('User-Agent')?.includes('Mobile') ? 'mobile' : 'desktop'
+    };
+    const data = await authService.login(email, password, deviceInfo);
     res.json(data);
   } catch (err) {
     next(err);
@@ -64,7 +70,7 @@ export const adminLogin = async (req: AuthRequest, res: Response, next: NextFunc
       }
 
       // If the user is an admin, attempt to log them in
-      const loginResult = await authService.login({ email, password });
+      const loginResult = await authService.login(email, password);
       res.json(loginResult);
     } catch (innerError) {
       // Don't expose whether the user exists or not
@@ -92,7 +98,7 @@ export const createAdmin = async (req: AuthRequest, res: Response, next: NextFun
       return;
     }
 
-    const user = await authService.register({
+    const result = await authService.register({
       email,
       password,
       name,
@@ -102,10 +108,10 @@ export const createAdmin = async (req: AuthRequest, res: Response, next: NextFun
     res.status(201).json({
       message: 'Admin user created successfully',
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role
+        id: result.user.id,
+        email: result.user.email,
+        name: result.user.name,
+        role: result.user.role
       }
     });
   } catch (err) {
