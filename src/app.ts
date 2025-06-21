@@ -111,6 +111,7 @@ import dashboardRoutes from './routes/dashboard';
 import deliveryRoutes from './routes/delivery';
 
 import monitoringRoutes from './routes/monitoring';
+import systemRoutes from './routes/system';
 
 // Mount routes
 app.use('/api/auth', authRoutes);
@@ -126,6 +127,7 @@ app.use('/api/payment', paymentRoutes); // Mount payment routes
 app.use('/api/delivery', deliveryRoutes);
 
 app.use('/api/monitoring', monitoringRoutes);
+app.use('/api/system', systemRoutes);
 
 // Health check route
 app.get('/', (req, res) => {
