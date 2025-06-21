@@ -1,4 +1,3 @@
-import { FirestoreService } from '../config/firebase';
 import { COLLECTIONS } from '../constants/collections';
 import { 
   Notification, 
@@ -8,12 +7,12 @@ import {
 } from '../models/Notification';
 import { User } from '../models/User';
 import { Order } from '../models/Order';
+import { FirestoreService } from '../utils/firestore';
 import { admin } from '../config/firebase';
 
-const firestore = admin.firestore();
-const notificationsCollection = firestore.collection('notifications');
-const preferencesCollection = firestore.collection('notification_preferences');
-const usersCollection = firestore.collection(COLLECTIONS.USERS);
+const notificationsCollection = FirestoreService.collection(COLLECTIONS.NOTIFICATIONS);
+const preferencesCollection = FirestoreService.collection(COLLECTIONS.NOTIFICATION_PREFERENCES);
+const usersCollection = FirestoreService.collection(COLLECTIONS.USERS);
 
 export interface EmailData {
   to: string;

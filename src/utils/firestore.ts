@@ -117,4 +117,12 @@ export class FirestoreService {
     await docRef.set(documentData);
     return documentData;
   }
+
+  /**
+   * Create a Firestore batch for atomic operations
+   * @returns A Firestore WriteBatch instance
+   */
+  static batch() {
+    return firestore.batch();
+  }
 }

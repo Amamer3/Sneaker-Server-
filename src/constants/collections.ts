@@ -8,7 +8,14 @@ export const COLLECTIONS = {
   CATEGORIES: 'categories',
   METRICS: 'metrics',
   LOGS: 'logs',
-  ALERTS: 'alerts'
+  ALERTS: 'alerts',
+  INVENTORY: 'inventory',
+  STOCK_MOVEMENTS: 'stock_movements',
+  STOCK_ALERTS: 'stock_alerts',
+  STOCK_RESERVATIONS: 'stock_reservations',
+  COUPONS: 'coupons',
+  NOTIFICATIONS: 'notifications',
+  NOTIFICATION_PREFERENCES: 'notification_preferences'
 } as const;
 
 export const SUB_COLLECTIONS = {

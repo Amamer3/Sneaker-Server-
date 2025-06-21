@@ -1,11 +1,11 @@
-import { FirestoreService } from '../config/firebase';
+import { FirestoreService } from '../utils/firestore';
 import { COLLECTIONS } from '../constants/collections';
 import { Coupon, CouponUsage, CreateCouponInput, CouponType, CouponStatus } from '../models/Coupon';
 import { Cart } from '../models/Cart';
 import { Order } from '../models/Order';
 import { admin } from '../config/firebase';
 
-const couponsCollection = FirestoreService.collection('coupons');
+const couponsCollection = FirestoreService.collection(COLLECTIONS.COUPONS);
 const productsCollection = FirestoreService.collection(COLLECTIONS.PRODUCTS);
 const usersCollection = FirestoreService.collection(COLLECTIONS.USERS);
 

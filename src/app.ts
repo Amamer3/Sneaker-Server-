@@ -18,7 +18,7 @@ import './config/firebase';
 import './config/cloudinary';
 
 // Initialize Redis client
-import redis from './config/redis';
+// import redis from './config/redis';
 import Logger from './utils/logger';
 import { HealthCheck } from './utils/healthCheck';
 import { FirestoreService } from './utils/firestore';
@@ -28,8 +28,8 @@ const app = express();
 // Trust proxy - required when behind a reverse proxy like Render
 app.set('trust proxy', 1);
 
-// Initialize health checker
-const healthChecker = new HealthCheck(redis, FirestoreService);
+// Initialize health checker (without Redis for now)
+// const healthChecker = new HealthCheck(redis, FirestoreService);
 
 // Middleware
 app.use(cors());
@@ -81,11 +81,17 @@ app.use((req, res, next) => {
   next();
 });
 
-// Test Redis connection
-redis.set('test_key', 'test_value');
+// Test Redis connection (optional) - temporarily disabled
+// try {
+//   redis.set('test_key', 'test_value');
+//   console.log('✅ Redis connected successfully');
+// } catch (error) {
+//   console.warn('⚠️ Redis connection failed (continuing without Redis):', error);
+//   // Continue without Redis - it's optional for basic functionality
+// }
 
 // Health check endpoint
-app.get('/api/health', healthChecker.middleware);
+// app.get('/api/health', healthChecker.middleware); // Temporarily disabled
 
 // Basic root endpoint
 app.get('/', (req, res) => {

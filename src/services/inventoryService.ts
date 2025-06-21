@@ -1,13 +1,12 @@
 import { ProductInventory, StockMovement, StockAlert, StockReservation, InventoryLocation } from '../models/Inventory';
 import { COLLECTIONS } from '../constants/collections';
-import { Product } from '../models/Product';
 import { admin } from '../config/firebase';
-import { FirestoreService } from '../config/firebase';
+import { FirestoreService } from '../utils/firestore';
 
-const inventoryCollection = FirestoreService.collection('inventory');
-const stockMovementsCollection = FirestoreService.collection('stock_movements');
-const stockAlertsCollection = FirestoreService.collection('stock_alerts');
-const reservationsCollection = FirestoreService.collection('stock_reservations');
+const inventoryCollection = FirestoreService.collection(COLLECTIONS.INVENTORY);
+const stockMovementsCollection = FirestoreService.collection(COLLECTIONS.STOCK_MOVEMENTS);
+const stockAlertsCollection = FirestoreService.collection(COLLECTIONS.STOCK_ALERTS);
+const reservationsCollection = FirestoreService.collection(COLLECTIONS.STOCK_RESERVATIONS);
 const productsCollection = FirestoreService.collection(COLLECTIONS.PRODUCTS);
 
 export class InventoryService {
