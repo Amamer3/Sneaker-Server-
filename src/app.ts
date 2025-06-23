@@ -20,8 +20,6 @@ import './config/cloudinary';
 // Initialize Redis client
 // import redis from './config/redis';
 import Logger from './utils/logger';
-import { HealthCheck } from './utils/healthCheck';
-import { FirestoreService } from './utils/firestore';
 
 const app = express();
 
@@ -107,11 +105,11 @@ import cartRoutes from './routes/cart';
 import orderRoutes from './routes/orders';
 import userRoutes from './routes/users';
 import analyticsRoutes from './routes/analytics';
-import dashboardRoutes from './routes/dashboard';
 import deliveryRoutes from './routes/delivery';
 
 import monitoringRoutes from './routes/monitoring';
 import systemRoutes from './routes/system';
+import inventoryRoutes from './routes/inventory';
 
 // Mount routes
 app.use('/api/auth', authRoutes);
@@ -128,6 +126,7 @@ app.use('/api/delivery', deliveryRoutes);
 
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/system', systemRoutes);
+app.use('/api/inventory', inventoryRoutes);
 
 // Health check route
 app.get('/', (req, res) => {
