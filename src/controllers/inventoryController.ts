@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { AuthRequest } from '../middleware/auth';
 import { inventoryService } from '../services/inventoryService';
 import { ProductInventory, StockMovement } from '../models/Inventory';
 import Logger from '../utils/logger';
@@ -115,11 +116,11 @@ export class InventoryController {
   }
 
   // Update stock
-  async updateStock(req: Request, res: Response): Promise<void> {
+  async updateStock(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { productId } = req.params;
       const { quantity, type, reason, reference, locationId = 'main' } = req.body;
-      const performedBy = req.user?.uid || 'system';
+      const performedBy = req.user?.id || 'system';
       
       if (!quantity || !type) {
         res.status(400).json({
