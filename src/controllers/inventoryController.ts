@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { inventoryService } from '../services/inventoryService';
-import { ProductInventory, StockMovement } from '../models/Inventory';
 import Logger from '../utils/logger';
 
 export class InventoryController {

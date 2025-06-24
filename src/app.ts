@@ -105,6 +105,7 @@ import cartRoutes from './routes/cart';
 import orderRoutes from './routes/orders';
 import userRoutes from './routes/users';
 import analyticsRoutes from './routes/analytics';
+import dashboardRoutes from './routes/dashboard';
 import deliveryRoutes from './routes/delivery';
 
 import monitoringRoutes from './routes/monitoring';
