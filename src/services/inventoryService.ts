@@ -296,16 +296,22 @@ export class InventoryService {
   // Get all stock movements for admin view
   async getAllStockMovements(limit: number = 50, locationId: string = 'main'): Promise<StockMovement[]> {
     try {
+      // Query without locationId filter to avoid composite index requirement
       const snapshot = await stockMovementsCollection
-        .where('locationId', '==', locationId)
         .orderBy('timestamp', 'desc')
-        .limit(limit)
+        .limit(limit * 2) // Get more to account for filtering
         .get();
 
-      return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as StockMovement[];
+      // Filter by locationId in application code
+       const movements = snapshot.docs
+         .map(doc => ({
+           id: doc.id,
+           ...doc.data()
+         }) as StockMovement)
+         .filter(movement => movement.location === locationId)
+         .slice(0, limit);
+
+      return movements;
     } catch (error) {
       console.error('Error getting all stock movements:', error);
       throw new Error('Failed to get all stock movements');
@@ -371,17 +377,19 @@ export class InventoryService {
         totalValue += inventory.quantity * unitCost;
       });
 
-      // Get recent movements (last 10)
+      // Get recent movements (last 10) - avoid composite index requirement
       const movementsSnapshot = await stockMovementsCollection
-        .where('locationId', '==', locationId)
         .orderBy('timestamp', 'desc')
-        .limit(10)
+        .limit(20) // Get more to account for filtering
         .get();
 
-      const recentMovements = movementsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as StockMovement[];
+      const recentMovements = movementsSnapshot.docs
+         .map(doc => ({
+           id: doc.id,
+           ...doc.data()
+         }) as StockMovement)
+         .filter(movement => movement.location === locationId)
+         .slice(0, 10);
 
       return {
         totalProducts,
