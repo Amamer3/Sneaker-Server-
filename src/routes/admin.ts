@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { authenticateJWT, authorizeRoles, AuthRequest } from '../middleware/auth';
 import * as dashboardController from '../controllers/dashboardController';
 import * as userController from '../controllers/userController';
+import { inventoryController } from '../controllers/inventoryController';
 
 const router = Router();
 
@@ -22,6 +23,16 @@ router.get('/users', (req: Request, res: Response, next: NextFunction) => {
 router.delete('/users/:userId', (req: Request, res: Response, next: NextFunction) => {
   const authReq = req as AuthRequest;
   userController.deleteUser(authReq, res, next);
+});
+
+// Inventory management routes
+router.get('/inventory/movements', (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  inventoryController.getStockMovements(authReq, res);
+});
+router.get('/inventory/summary', (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  inventoryController.getInventorySummary(authReq, res);
 });
 
 export default router;

@@ -176,9 +176,15 @@ export class InventoryController {
   async getStockMovements(req: Request, res: Response): Promise<void> {
     try {
       const { productId } = req.params;
-      const { limit = 50 } = req.query;
+      const { limit = 50, locationId = 'main' } = req.query;
       
-      const movements = await inventoryService.getStockMovements(productId, Number(limit));
+      let movements;
+      if (productId) {
+        movements = await inventoryService.getStockMovements(productId, Number(limit));
+      } else {
+        // Get all movements for admin view
+        movements = await inventoryService.getAllStockMovements(Number(limit), locationId as string);
+      }
       
       res.json({
         success: true,
@@ -189,6 +195,25 @@ export class InventoryController {
       res.status(500).json({
         success: false,
         message: 'Failed to get stock movements'
+      });
+    }
+  }
+
+  async getInventorySummary(req: Request, res: Response): Promise<void> {
+    try {
+      const { locationId = 'main' } = req.query;
+      
+      const summary = await inventoryService.getInventorySummary(locationId as string);
+      
+      res.json({
+        success: true,
+        data: summary
+      });
+    } catch (error) {
+      Logger.error('Error getting inventory summary:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get inventory summary'
       });
     }
   }

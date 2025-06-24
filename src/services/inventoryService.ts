@@ -293,6 +293,25 @@ export class InventoryService {
     }
   }
 
+  // Get all stock movements for admin view
+  async getAllStockMovements(limit: number = 50, locationId: string = 'main'): Promise<StockMovement[]> {
+    try {
+      const snapshot = await stockMovementsCollection
+        .where('locationId', '==', locationId)
+        .orderBy('timestamp', 'desc')
+        .limit(limit)
+        .get();
+
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as StockMovement[];
+    } catch (error) {
+      console.error('Error getting all stock movements:', error);
+      throw new Error('Failed to get all stock movements');
+    }
+  }
+
   // Bulk update inventory
   async bulkUpdateInventory(updates: {
     productId: string;
@@ -316,6 +335,64 @@ export class InventoryService {
     } catch (error) {
       console.error('Error bulk updating inventory:', error);
       throw new Error('Failed to bulk update inventory');
+    }
+  }
+
+  // Get inventory summary
+  async getInventorySummary(locationId: string = 'main'): Promise<{
+    totalProducts: number;
+    lowStockProducts: number;
+    outOfStockProducts: number;
+    totalValue: number;
+    recentMovements: StockMovement[];
+  }> {
+    try {
+      const snapshot = await inventoryCollection
+        .where('locationId', '==', locationId)
+        .get();
+
+      let totalProducts = 0;
+      let lowStockProducts = 0;
+      let outOfStockProducts = 0;
+      let totalValue = 0;
+
+      snapshot.docs.forEach(doc => {
+        const inventory = doc.data() as ProductInventory;
+        totalProducts++;
+        
+        if (inventory.quantity === 0) {
+          outOfStockProducts++;
+        } else if (inventory.quantity <= inventory.reorderPoint) {
+          lowStockProducts++;
+        }
+        
+        // Calculate total value using supplier cost if available
+        const unitCost = inventory.supplierInfo?.cost || 0;
+        totalValue += inventory.quantity * unitCost;
+      });
+
+      // Get recent movements (last 10)
+      const movementsSnapshot = await stockMovementsCollection
+        .where('locationId', '==', locationId)
+        .orderBy('timestamp', 'desc')
+        .limit(10)
+        .get();
+
+      const recentMovements = movementsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as StockMovement[];
+
+      return {
+        totalProducts,
+        lowStockProducts,
+        outOfStockProducts,
+        totalValue,
+        recentMovements
+      };
+    } catch (error) {
+      console.error('Error getting inventory summary:', error);
+      throw new Error('Failed to get inventory summary');
     }
   }
 }
