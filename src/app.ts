@@ -89,7 +89,13 @@ app.use((req, res, next) => {
 // }
 
 // Health check endpoint
-// app.get('/api/health', healthChecker.middleware); // Temporarily disabled
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'Sneakers Store API is healthy',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Basic root endpoint
 app.get('/', (req, res) => {

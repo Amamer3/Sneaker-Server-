@@ -1,6 +1,7 @@
-import { Router } from 'express';
-import { authenticateJWT, authorizeRoles } from '../middleware/auth';
+import { Router, Request, Response, NextFunction } from 'express';
+import { authenticateJWT, authorizeRoles, AuthRequest } from '../middleware/auth';
 import * as dashboardController from '../controllers/dashboardController';
+import * as userController from '../controllers/userController';
 
 const router = Router();
 
@@ -11,5 +12,16 @@ router.use(authorizeRoles('admin'));
 // Dashboard routes
 router.get('/dashboard/stats', dashboardController.getDashboardStats);
 router.get('/dashboard/recent-orders', dashboardController.getRecentOrders);
+
+// User management routes
+router.get('/users', (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
+  userController.getAllUsers(authReq, res, next);
+});
+
+router.delete('/users/:userId', (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
+  userController.deleteUser(authReq, res, next);
+});
 
 export default router;
