@@ -34,5 +34,9 @@ router.get('/inventory/summary', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   inventoryController.getInventorySummary(authReq, res);
 });
+router.get('/inventory/alerts/low-stock', (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  inventoryController.getLowStockProducts(authReq, res);
+});
 
 export default router;
