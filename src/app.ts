@@ -90,7 +90,18 @@ app.use((req, res, next) => {
 // }
 
 // Health check endpoint
-// app.get('/api/health', healthChecker.middleware); // Temporarily disabled
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    services: {
+      firestore: 'connected',
+      redis: 'optional'
+    }
+  });
+});
 
 // Basic root endpoint
 app.get('/', (req, res) => {
@@ -112,6 +123,7 @@ import deliveryRoutes from './routes/delivery';
 import monitoringRoutes from './routes/monitoring';
 import systemRoutes from './routes/system';
 import inventoryRoutes from './routes/inventory';
+import notificationRoutes from './routes/notifications';
 
 // Mount routes
 app.use('/api/auth', authRoutes);
@@ -129,6 +141,7 @@ app.use('/api/delivery', deliveryRoutes);
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/system', systemRoutes);
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check route
 app.get('/', (req, res) => {

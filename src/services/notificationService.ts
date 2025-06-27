@@ -1,4 +1,3 @@
-import { COLLECTIONS } from '../constants/collections';
 import { 
   Notification, 
   NotificationTemplate, 
@@ -9,6 +8,7 @@ import { User } from '../models/User';
 import { Order } from '../models/Order';
 import { FirestoreService } from '../utils/firestore';
 import { admin } from '../config/firebase';
+import { COLLECTIONS } from '../constants/collections';
 
 const notificationsCollection = FirestoreService.collection(COLLECTIONS.NOTIFICATIONS);
 const preferencesCollection = FirestoreService.collection(COLLECTIONS.NOTIFICATION_PREFERENCES);
@@ -286,56 +286,9 @@ export class NotificationService {
     });
   }
 
-  // Mark notification as read
-  async markAsRead(notificationId: string): Promise<void> {
-    try {
-      await notificationsCollection.doc(notificationId).update({
-        isRead: true,
-        readAt: new Date(),
-        updatedAt: new Date()
-      });
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
-      throw new Error('Failed to mark notification as read');
-    }
-  }
 
-  // Get user notifications
-  async getUserNotifications(
-    userId: string, 
-    limit: number = 20, 
-    offset: number = 0,
-    unreadOnly: boolean = false
-  ): Promise<Notification[]> {
-    try {
-      let query = notificationsCollection
-        .where('userId', '==', userId)
-        .orderBy('createdAt', 'desc')
-        .limit(limit)
-        .offset(offset);
 
-      if (unreadOnly) {
-        query = query.where('isRead', '==', false);
-      }
 
-      const snapshot = await query.get();
-      
-      return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate(),
-        updatedAt: doc.data().updatedAt?.toDate(),
-        readAt: doc.data().readAt?.toDate(),
-        sentAt: doc.data().sentAt?.toDate(),
-        deliveredAt: doc.data().deliveredAt?.toDate(),
-        expiresAt: doc.data().expiresAt?.toDate(),
-        scheduledFor: doc.data().scheduledFor?.toDate()
-      })) as Notification[];
-    } catch (error) {
-      console.error('Error getting user notifications:', error);
-      throw new Error('Failed to get user notifications');
-    }
-  }
 
   // Send order confirmation notification
   async sendOrderConfirmation(order: Order): Promise<void> {
@@ -494,6 +447,149 @@ export class NotificationService {
       }
     } catch (error) {
       console.error('Error processing scheduled notifications:', error);
+    }
+  }
+
+  // Get user notifications with pagination
+  async getUserNotifications(userId: string, options: {
+    page?: number;
+    limit?: number;
+    unreadOnly?: boolean;
+  } = {}): Promise<{
+    notifications: Notification[];
+    total: number;
+    page: number;
+    totalPages: number;
+  }> {
+    try {
+      const { page = 1, limit = 20, unreadOnly = false } = options;
+      const offset = (page - 1) * limit;
+
+      let query = notificationsCollection
+        .where('userId', '==', userId)
+        .orderBy('createdAt', 'desc');
+
+      if (unreadOnly) {
+        query = query.where('isRead', '==', false);
+      }
+
+      // Get total count
+      const countSnapshot = await query.get();
+      const total = countSnapshot.size;
+
+      // Get paginated results
+      const snapshot = await query.limit(limit).offset(offset).get();
+      
+      const notifications = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate(),
+        updatedAt: doc.data().updatedAt?.toDate(),
+        readAt: doc.data().readAt?.toDate(),
+        scheduledFor: doc.data().scheduledFor?.toDate(),
+        sentAt: doc.data().sentAt?.toDate(),
+        deliveredAt: doc.data().deliveredAt?.toDate(),
+        expiresAt: doc.data().expiresAt?.toDate()
+      })) as Notification[];
+
+      return {
+        notifications,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit)
+      };
+    } catch (error) {
+      console.error('Error fetching user notifications:', error);
+      throw error;
+    }
+  }
+
+  // Get unread notification count
+  async getUnreadCount(userId: string): Promise<number> {
+    try {
+      const snapshot = await notificationsCollection
+        .where('userId', '==', userId)
+        .where('isRead', '==', false)
+        .get();
+      
+      return snapshot.size;
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
+      throw error;
+    }
+  }
+
+  // Mark notification as read
+  async markAsRead(notificationId: string, userId: string): Promise<void> {
+    try {
+      const notificationRef = notificationsCollection.doc(notificationId);
+      const doc = await notificationRef.get();
+      
+      if (!doc.exists) {
+        throw new Error('Notification not found');
+      }
+      
+      const notification = doc.data() as Notification;
+      if (notification.userId !== userId) {
+        throw new Error('Unauthorized access to notification');
+      }
+      
+      await notificationRef.update({
+        isRead: true,
+        readAt: new Date(),
+        updatedAt: new Date()
+      });
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      throw error;
+    }
+  }
+
+  // Mark all notifications as read
+  async markAllAsRead(userId: string): Promise<void> {
+    try {
+      const snapshot = await notificationsCollection
+        .where('userId', '==', userId)
+        .where('isRead', '==', false)
+        .get();
+      
+      const batch = notificationsCollection.firestore.batch();
+      const now = new Date();
+      
+      snapshot.docs.forEach(doc => {
+        batch.update(doc.ref, {
+          isRead: true,
+          readAt: now,
+          updatedAt: now
+        });
+      });
+      
+      await batch.commit();
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+      throw error;
+    }
+  }
+
+  // Delete notification
+  async deleteNotification(notificationId: string, userId: string): Promise<void> {
+    try {
+      const notificationRef = notificationsCollection.doc(notificationId);
+      const doc = await notificationRef.get();
+      
+      if (!doc.exists) {
+        throw new Error('Notification not found');
+      }
+      
+      const notification = doc.data() as Notification;
+      if (notification.userId !== userId) {
+        throw new Error('Unauthorized access to notification');
+      }
+      
+      await notificationRef.delete();
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      throw error;
     }
   }
 }
