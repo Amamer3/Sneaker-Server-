@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
-import { AuthRequest } from '../middleware/auth';
 import { inventoryService } from '../services/inventoryService';
+import { ProductInventory, StockMovement } from '../models/Inventory';
+import { AuthRequest } from '../middleware/auth';
 import Logger from '../utils/logger';
 
 export class InventoryController {
@@ -115,11 +116,12 @@ export class InventoryController {
   }
 
   // Update stock
-  async updateStock(req: AuthRequest, res: Response): Promise<void> {
+  async updateStock(req: Request, res: Response): Promise<void> {
     try {
       const { productId } = req.params;
       const { quantity, type, reason, reference, locationId = 'main' } = req.body;
-      const performedBy = req.user?.id || 'system';
+      const authReq = req as AuthRequest;
+      const performedBy = authReq.user?.id || 'system';
       
       if (!quantity || !type) {
         res.status(400).json({
@@ -176,15 +178,9 @@ export class InventoryController {
   async getStockMovements(req: Request, res: Response): Promise<void> {
     try {
       const { productId } = req.params;
-      const { limit = 50, locationId = 'main' } = req.query;
+      const { limit = 50 } = req.query;
       
-      let movements;
-      if (productId) {
-        movements = await inventoryService.getStockMovements(productId, Number(limit));
-      } else {
-        // Get all movements for admin view
-        movements = await inventoryService.getAllStockMovements(Number(limit), locationId as string);
-      }
+      const movements = await inventoryService.getStockMovements(productId, Number(limit));
       
       res.json({
         success: true,
@@ -199,6 +195,7 @@ export class InventoryController {
     }
   }
 
+  // Get inventory summary
   async getInventorySummary(req: Request, res: Response): Promise<void> {
     try {
       const { locationId = 'main' } = req.query;

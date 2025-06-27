@@ -20,6 +20,7 @@ import './config/cloudinary';
 // Initialize Redis client
 // import redis from './config/redis';
 import Logger from './utils/logger';
+import { FirestoreService } from './utils/firestore';
 
 const app = express();
 
@@ -89,13 +90,7 @@ app.use((req, res, next) => {
 // }
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    message: 'Sneakers Store API is healthy',
-    timestamp: new Date().toISOString()
-  });
-});
+// app.get('/api/health', healthChecker.middleware); // Temporarily disabled
 
 // Basic root endpoint
 app.get('/', (req, res) => {

@@ -181,7 +181,11 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
       featured: req.body.featured ? req.body.featured === 'true' : undefined
     };
 
-    const product = await productService.updateProduct(productId, updatedData);
+    // Get user information for inventory synchronization
+    const authReq = req as AuthRequest;
+    const updatedBy = authReq.user?.id || 'system';
+    
+    const product = await productService.updateProduct(productId, updatedData, updatedBy);
     await productService.invalidateCache();
     
     res.json(product);

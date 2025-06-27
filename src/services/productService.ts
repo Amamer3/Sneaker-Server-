@@ -1,12 +1,10 @@
-import { FirestoreService } from '../config/firebase';
 import { COLLECTIONS } from '../constants/collections';
 import { Product, ProductImage, ProductVariant, ProductSEO } from '../models/Product';
 import { cacheKey, getCache, setCache, clearCache } from '../utils/cache';
-import { CollectionReference, Query, DocumentData } from '@google-cloud/firestore';
 import { InventoryService } from './inventoryService';
+import { admin, FirestoreService } from '../config/firebase';
 
 const inventoryService = new InventoryService();
-import { admin } from '../config/firebase';
 
 interface PaginatedResponse<T> {
   items: T[];
@@ -286,10 +284,12 @@ export async function getProductById(id: string): Promise<Product | null> {
 // Alias for backward compatibility
 // This comment has been removed since getProduct is defined below
 
-export async function updateProduct(id: string, data: Partial<Product>): Promise<Product | null> {
+export async function updateProduct(id: string, data: Partial<Product>, updatedBy?: string): Promise<Product | null> {
   const docRef = productsCollection.doc(id);
   const doc = await docRef.get();
   if (!doc.exists) return null;
+  
+  const currentProduct = doc.data() as Product;
   
   // Create update data object without undefined values
   const baseData = {
@@ -320,6 +320,28 @@ export async function updateProduct(id: string, data: Partial<Product>): Promise
     ]);
 
     baseData.searchTokens = Array.from(tokens);
+  }
+
+  // Handle stock updates - sync with inventory
+  if (data.stock !== undefined && data.stock !== currentProduct.stock && updatedBy) {
+    try {
+      const stockDifference = data.stock - currentProduct.stock;
+      const movementType = stockDifference > 0 ? 'restock' : 'sale';
+      const quantity = Math.abs(stockDifference);
+      
+      // Update inventory to match product stock change
+      await inventoryService.updateStock(
+        id,
+        quantity,
+        movementType,
+        updatedBy,
+        'main',
+        `Product stock updated from ${currentProduct.stock} to ${data.stock}`
+      );
+    } catch (error) {
+      console.warn(`Failed to sync inventory for product ${id}:`, error);
+      // Continue with product update even if inventory sync fails
+    }
   }
 
   // Filter out any undefined values to prevent Firestore errors
@@ -373,10 +395,37 @@ export async function reorderImages(productId: string, imageOrder: { id: string;
   return updated.data() as Product;
 }
 
-export async function getProduct(id: string): Promise<Product | null> {
+export async function getProduct(id: string, includeInventory: boolean = true): Promise<Product | null> {
   const doc = await productsCollection.doc(id).get();
   if (!doc.exists) return null;
-  return doc.data() as Product;
+  
+  const product = doc.data() as Product;
+  
+  if (includeInventory) {
+    try {
+      // Fetch inventory data for the product
+      const inventory = await inventoryService.getProductInventory(id);
+      if (inventory) {
+        // Update product stock information with real-time inventory data
+        product.stock = inventory.quantity;
+        product.inStock = inventory.quantity > 0;
+        
+        // Add inventory metadata to product (optional)
+         (product as any).inventory = {
+           quantity: inventory.quantity,
+           reserved: inventory.reservedQuantity,
+           available: inventory.availableQuantity,
+           locationId: inventory.locationId,
+           lastUpdated: inventory.updatedAt
+         };
+      }
+    } catch (error) {
+      console.warn(`Failed to fetch inventory for product ${id}:`, error);
+      // Continue without inventory data if fetch fails
+    }
+  }
+  
+  return product;
 }
 
 export async function getProductFilters(): Promise<ProductFilters> {
@@ -391,7 +440,41 @@ export async function getProductFilters(): Promise<ProductFilters> {
     .where('status', '==', 'published')
     .get();
 
-  const products = productsSnap.docs.map(doc => doc.data() as Product);
+  let products = productsSnap.docs.map(doc => ({
+    ...doc.data(),
+    id: doc.id
+  })) as Product[];
+
+  // Fetch inventory data for all products
+  try {
+    const inventoryPromises = products.map(async (product) => {
+      try {
+        const inventory = await inventoryService.getProductInventory(product.id);
+        if (inventory) {
+          product.stock = inventory.quantity;
+          product.inStock = inventory.quantity > 0;
+          
+          // Add inventory metadata
+           (product as any).inventory = {
+             quantity: inventory.quantity,
+             reserved: inventory.reservedQuantity,
+             available: inventory.availableQuantity,
+             locationId: inventory.locationId,
+             lastUpdated: inventory.updatedAt
+           };
+        }
+        return product;
+      } catch (error) {
+        console.warn(`Failed to fetch inventory for product ${product.id}:`, error);
+        return product; // Return product without inventory data
+      }
+    });
+    
+    products = await Promise.all(inventoryPromises);
+  } catch (error) {
+    console.warn('Failed to fetch inventory data for products:', error);
+    // Continue with products without inventory data
+  }
   
   const filters: ProductFilters = {
     categories: Array.from(new Set(products.map((p: Product) => p.category))).filter(Boolean),
