@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
+import { AuthRequest } from '../middleware/auth';
 import { inventoryService } from '../services/inventoryService';
 import { ProductInventory, StockMovement } from '../models/Inventory';
-import { AuthRequest } from '../middleware/auth';
 import Logger from '../utils/logger';
 
 export class InventoryController {
@@ -118,9 +118,9 @@ export class InventoryController {
   // Update stock
   async updateStock(req: Request, res: Response): Promise<void> {
     try {
+      const authReq = req as AuthRequest;
       const { productId } = req.params;
       const { quantity, type, reason, reference, locationId = 'main' } = req.body;
-      const authReq = req as AuthRequest;
       const performedBy = authReq.user?.id || 'system';
       
       if (!quantity || !type) {
@@ -198,9 +198,7 @@ export class InventoryController {
   // Get inventory summary
   async getInventorySummary(req: Request, res: Response): Promise<void> {
     try {
-      const { locationId = 'main' } = req.query;
-      
-      const summary = await inventoryService.getInventorySummary(locationId as string);
+      const summary = await inventoryService.getInventorySummary();
       
       res.json({
         success: true,
