@@ -52,11 +52,34 @@ export const getUnreadCount = async (req: Request, res: Response): Promise<void>
 
     res.json({
       success: true,
-      data: { count }
+      data: { unreadCount: count }
     });
   } catch (error) {
     Logger.error('Error fetching unread count:', error);
     res.status(500).json({ message: 'Failed to fetch unread count' });
+  }
+};
+
+// Get notification statistics
+export const getNotificationStats = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as AuthRequest;
+    const userId = authReq.user?.id;
+    
+    if (!userId) {
+      res.status(401).json({ message: 'User not authenticated' });
+      return;
+    }
+
+    const stats = await notificationService.getNotificationStats(userId);
+
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    Logger.error('Error fetching notification stats:', error);
+    res.status(500).json({ message: 'Failed to fetch notification stats' });
   }
 };
 

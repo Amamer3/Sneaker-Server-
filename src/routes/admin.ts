@@ -3,6 +3,7 @@ import { authenticateJWT, authorizeRoles, AuthRequest } from '../middleware/auth
 import * as dashboardController from '../controllers/dashboardController';
 import * as userController from '../controllers/userController';
 import { inventoryController } from '../controllers/inventoryController';
+import adminNotificationRoutes from './admin/notifications';
 
 const router = Router();
 
@@ -38,5 +39,8 @@ router.get('/inventory/alerts/low-stock', (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   inventoryController.getLowStockProducts(authReq, res);
 });
+
+// Mount admin notification routes
+router.use('/notifications', adminNotificationRoutes);
 
 export default router;

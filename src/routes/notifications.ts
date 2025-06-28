@@ -13,6 +13,9 @@ router.get('/', notificationController.getUserNotifications);
 // Get unread notification count
 router.get('/unread-count', notificationController.getUnreadCount);
 
+// Get notification statistics
+router.get('/stats', notificationController.getNotificationStats);
+
 // Mark notification as read
 router.put('/:id/read', notificationController.markAsRead);
 

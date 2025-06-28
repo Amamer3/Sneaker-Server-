@@ -15,7 +15,8 @@ export const COLLECTIONS = {
   STOCK_RESERVATIONS: 'stock_reservations',
   COUPONS: 'coupons',
   NOTIFICATIONS: 'notifications',
-  NOTIFICATION_PREFERENCES: 'notification_preferences'
+  NOTIFICATION_PREFERENCES: 'notification_preferences',
+  NOTIFICATION_TEMPLATES: 'notificationTemplates'
 } as const;
 
 export const SUB_COLLECTIONS = {

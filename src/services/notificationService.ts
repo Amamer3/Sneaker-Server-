@@ -519,6 +519,60 @@ export class NotificationService {
     }
   }
 
+  /**
+   * Get notification statistics for a user
+   */
+  async getNotificationStats(userId: string): Promise<{
+    total: number;
+    unread: number;
+    read: number;
+    byType: Record<string, number>;
+    recent: number;
+  }> {
+    try {
+      // Get all notifications for user
+      const allSnapshot = await notificationsCollection
+        .where('userId', '==', userId)
+        .get();
+      
+      // Get unread notifications
+      const unreadSnapshot = await notificationsCollection
+        .where('userId', '==', userId)
+        .where('isRead', '==', false)
+        .get();
+      
+      // Get recent notifications (last 7 days)
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const recentSnapshot = await notificationsCollection
+        .where('userId', '==', userId)
+        .where('createdAt', '>=', sevenDaysAgo)
+        .get();
+      
+      // Count by type
+      const byType: Record<string, number> = {};
+      allSnapshot.docs.forEach((doc: any) => {
+        const data = doc.data() as Notification;
+        byType[data.type] = (byType[data.type] || 0) + 1;
+      });
+      
+      const total = allSnapshot.size;
+      const unread = unreadSnapshot.size;
+      
+      return {
+        total,
+        unread,
+        read: total - unread,
+        byType,
+        recent: recentSnapshot.size
+      };
+    } catch (error) {
+      console.error('Error getting notification stats:', error);
+      throw new Error('Failed to get notification stats');
+    }
+  }
+
   // Mark notification as read
   async markAsRead(notificationId: string, userId: string): Promise<void> {
     try {
