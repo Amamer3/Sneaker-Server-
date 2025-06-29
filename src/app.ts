@@ -119,10 +119,11 @@ import userRoutes from './routes/users';
 import analyticsRoutes from './routes/analytics';
 import dashboardRoutes from './routes/dashboard';
 import deliveryRoutes from './routes/delivery';
+import couponRoutes from './routes/coupons';
 
 import monitoringRoutes from './routes/monitoring';
 import systemRoutes from './routes/system';
-import inventoryRoutes from './routes/inventory';
+
 import notificationRoutes from './routes/notifications';
 
 // Mount routes
@@ -134,13 +135,14 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/admin/coupons', couponRoutes); // Mount coupon routes under admin
 app.use('/api/admin', adminRoutes);
 app.use('/api/payment', paymentRoutes); // Mount payment routes
 app.use('/api/delivery', deliveryRoutes);
 
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/system', systemRoutes);
-app.use('/api/inventory', inventoryRoutes);
+
 app.use('/api/notifications', notificationRoutes);
 
 // Health check route

@@ -1,10 +1,7 @@
 import { COLLECTIONS } from '../constants/collections';
 import { Product, ProductImage, ProductVariant, ProductSEO } from '../models/Product';
 import { cacheKey, getCache, setCache, clearCache } from '../utils/cache';
-import { InventoryService } from './inventoryService';
 import { admin, FirestoreService } from '../config/firebase';
-
-const inventoryService = new InventoryService();
 
 interface PaginatedResponse<T> {
   items: T[];
@@ -141,16 +138,7 @@ export async function createProduct(data: Partial<Product>, createdBy?: string):
   await docRef.update({ id: docRef.id });
 
   // Initialize inventory for the product
-  if (createdBy && (data.stock || 0) > 0) {
-    await inventoryService.updateStock(
-      docRef.id,
-      data.stock || 0,
-      'restock',
-      createdBy,
-      'main',
-      'Initial stock for new product'
-    );
-  }
+  // Stock management removed - inventory system no longer available
 
   // Clear cache after creating new product
   await clearCache('products:*');
@@ -322,27 +310,7 @@ export async function updateProduct(id: string, data: Partial<Product>, updatedB
     baseData.searchTokens = Array.from(tokens);
   }
 
-  // Handle stock updates - sync with inventory
-  if (data.stock !== undefined && data.stock !== currentProduct.stock && updatedBy) {
-    try {
-      const stockDifference = data.stock - currentProduct.stock;
-      const movementType = stockDifference > 0 ? 'restock' : 'sale';
-      const quantity = Math.abs(stockDifference);
-      
-      // Update inventory to match product stock change
-      await inventoryService.updateStock(
-        id,
-        quantity,
-        movementType,
-        updatedBy,
-        'main',
-        `Product stock updated from ${currentProduct.stock} to ${data.stock}`
-      );
-    } catch (error) {
-      console.warn(`Failed to sync inventory for product ${id}:`, error);
-      // Continue with product update even if inventory sync fails
-    }
-  }
+  // Inventory management removed - stock updates no longer synced to inventory system
 
   // Filter out any undefined values to prevent Firestore errors
   const updateData = Object.entries(baseData).reduce((acc, [key, value]) => {
@@ -401,28 +369,10 @@ export async function getProduct(id: string, includeInventory: boolean = true): 
   
   const product = doc.data() as Product;
   
+  // Inventory system removed - using product stock data directly
   if (includeInventory) {
-    try {
-      // Fetch inventory data for the product
-      const inventory = await inventoryService.getProductInventory(id);
-      if (inventory) {
-        // Update product stock information with real-time inventory data
-        product.stock = inventory.quantity;
-        product.inStock = inventory.quantity > 0;
-        
-        // Add inventory metadata to product (optional)
-         (product as any).inventory = {
-           quantity: inventory.quantity,
-           reserved: inventory.reservedQuantity,
-           available: inventory.availableQuantity,
-           locationId: inventory.locationId,
-           lastUpdated: inventory.updatedAt
-         };
-      }
-    } catch (error) {
-      console.warn(`Failed to fetch inventory for product ${id}:`, error);
-      // Continue without inventory data if fetch fails
-    }
+    // Stock information is now managed directly in product data
+    product.inStock = (product.stock || 0) > 0;
   }
   
   return product;
@@ -445,36 +395,7 @@ export async function getProductFilters(): Promise<ProductFilters> {
     id: doc.id
   })) as Product[];
 
-  // Fetch inventory data for all products
-  try {
-    const inventoryPromises = products.map(async (product) => {
-      try {
-        const inventory = await inventoryService.getProductInventory(product.id);
-        if (inventory) {
-          product.stock = inventory.quantity;
-          product.inStock = inventory.quantity > 0;
-          
-          // Add inventory metadata
-           (product as any).inventory = {
-             quantity: inventory.quantity,
-             reserved: inventory.reservedQuantity,
-             available: inventory.availableQuantity,
-             locationId: inventory.locationId,
-             lastUpdated: inventory.updatedAt
-           };
-        }
-        return product;
-      } catch (error) {
-        console.warn(`Failed to fetch inventory for product ${product.id}:`, error);
-        return product; // Return product without inventory data
-      }
-    });
-    
-    products = await Promise.all(inventoryPromises);
-  } catch (error) {
-    console.warn('Failed to fetch inventory data for products:', error);
-    // Continue with products without inventory data
-  }
+  // Inventory system removed - using product stock data directly
   
   const filters: ProductFilters = {
     categories: Array.from(new Set(products.map((p: Product) => p.category))).filter(Boolean),

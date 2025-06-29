@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { authenticateJWT } from '../middleware/auth';
 import * as notificationController from '../controllers/notificationController';
+import { authenticateJWT } from '../middleware/auth';
 
 const router = Router();
 
-// Apply authentication to all notification routes
+// Apply authentication middleware to all notification routes
 router.use(authenticateJWT);
 
 // Get user notifications
@@ -24,5 +24,8 @@ router.put('/mark-all-read', notificationController.markAllAsRead);
 
 // Delete notification
 router.delete('/:id', notificationController.deleteNotification);
+
+// Server-Sent Events stream for real-time notifications
+router.get('/stream', notificationController.streamNotifications);
 
 export default router;

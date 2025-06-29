@@ -2,7 +2,7 @@ import { StoredCart } from '../models/Cart';
 import { admin, FirestoreService } from '../config/firebase';
 import { COLLECTIONS } from '../constants/collections';
 import { Timestamp } from 'firebase-admin/firestore';
-import { InventoryService } from './inventoryService';
+
 import { Cart, GuestCart, CartItem, StoredCartItem } from '../models/Cart';
 import { Product } from '../models/Product';
 import { CouponService } from './couponService';
@@ -11,7 +11,7 @@ export class CartService {
   private collection = FirestoreService.collection(COLLECTIONS.CARTS);
   private productsCollection = FirestoreService.collection(COLLECTIONS.PRODUCTS);
   private couponService = new CouponService();
-  private inventoryService = new InventoryService();
+
 
   // Convert a guest cart to a stored cart
   async convertGuestCartToStoredCart(userId: string, guestCart: GuestCart): Promise<Cart> {
@@ -312,24 +312,6 @@ export class CartService {
       const issues: any[] = [];
 
       for (const item of cart.items) {
-        // Check inventory
-        const inventory = await this.inventoryService.getProductInventory(item.productId);
-        if (!inventory) {
-          issues.push({
-            productId: item.productId,
-            issue: 'out_of_stock'
-          });
-          continue;
-        }
-
-        if (inventory.availableQuantity < item.quantity) {
-          issues.push({
-            productId: item.productId,
-            issue: 'insufficient_stock',
-            availableStock: inventory.availableQuantity
-          });
-        }
-
         // Check price changes
         const productDoc = await this.productsCollection.doc(item.productId).get();
         if (productDoc.exists) {
@@ -369,27 +351,30 @@ export class CartService {
         throw new Error('Cart not found');
       }
 
-      const validation = await this.couponService.validateCoupon(couponCode, userId, cart, cart.total);
-      
+      // Pass cart as StoredCart for type safety
+      const validation = await this.couponService.validateCoupon(couponCode, userId, cart as StoredCart, cart.total);
       if (!validation.isValid) {
         throw new Error(validation.error || 'Invalid or expired coupon');
       }
 
-      const discount = await this.couponService.applyCoupon(
+      // Use await and remove unnecessary type assertions and runtime checks
+      const discountResult = await this.couponService.applyCoupon(
         couponCode,
         userId,
         '', // orderId - empty for cart application
-        cart,
+        cart as StoredCart,
         cart.total
       );
+
+      const { discountAmount, finalAmount, coupon } = discountResult;
 
       // Update cart with coupon information
       const now = Timestamp.now();
       const updates = {
         couponCode,
-        couponDiscount: discount.discountAmount,
-        total: discount.finalAmount,
-        updatedAt: now
+        couponDiscount: discountAmount,
+        total: finalAmount,
+        updatedAt: now,
       };
 
       await this.collection.doc(cart.id).update(updates);
@@ -403,10 +388,10 @@ export class CartService {
       return {
         cart: updatedCart,
         discount: {
-          amount: discount.discountAmount,
-          percentage: discount.coupon.type === 'percentage' ? discount.coupon.value : undefined,
+          amount: discountAmount,
+          percentage: coupon?.type === 'percentage' ? coupon.value : undefined,
           description: `Coupon ${couponCode} applied`
-        }
+        },
       };
     } catch (error) {
       console.error('Error applying coupon to cart:', error);
@@ -425,8 +410,8 @@ export class CartService {
       const now = Timestamp.now();
       const updates = {
         couponCode: admin.firestore.FieldValue.delete(),
-        discount: admin.firestore.FieldValue.delete(),
-        finalTotal: admin.firestore.FieldValue.delete(),
+        couponDiscount: admin.firestore.FieldValue.delete(),
+        total: this.calculateTotal(cart.items),
         updatedAt: now
       };
 

@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { authenticateJWT, authorizeRoles, AuthRequest } from '../middleware/auth';
 import * as dashboardController from '../controllers/dashboardController';
 import * as userController from '../controllers/userController';
-import { inventoryController } from '../controllers/inventoryController';
+
 import adminNotificationRoutes from './admin/notifications';
 
 const router = Router();
@@ -26,19 +26,7 @@ router.delete('/users/:userId', (req: Request, res: Response, next: NextFunction
   userController.deleteUser(authReq, res, next);
 });
 
-// Inventory management routes
-router.get('/inventory/movements', (req: Request, res: Response) => {
-  const authReq = req as AuthRequest;
-  inventoryController.getStockMovements(authReq, res);
-});
-router.get('/inventory/summary', (req: Request, res: Response) => {
-  const authReq = req as AuthRequest;
-  inventoryController.getInventorySummary(authReq, res);
-});
-router.get('/inventory/alerts/low-stock', (req: Request, res: Response) => {
-  const authReq = req as AuthRequest;
-  inventoryController.getLowStockProducts(authReq, res);
-});
+
 
 // Mount admin notification routes
 router.use('/notifications', adminNotificationRoutes);

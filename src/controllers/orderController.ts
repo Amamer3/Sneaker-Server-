@@ -3,6 +3,7 @@ import * as orderService from '../services/orderService';
 import { AuthRequest } from '../middleware/auth';
 import { CustomError } from '../utils/helpers';
 import { CreateOrderInput, OrderItem } from '../models/Order';
+import { NotificationService } from '../services/notificationService';
 
 export const createOrder = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -188,8 +189,45 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response, next: N
       return;
     }
 
+    // Get the order first to access user information
+    const order = await orderService.getOrderById(id);
+    if (!order) {
+      res.status(404).json({ message: 'Order not found' });
+      return;
+    }
+
+    // Update the order status
     await orderService.updateOrderStatus(id, status);
-    res.json({ message: 'Order status updated' });
+
+    // Send notification to the customer about status change
+     const notificationService = new NotificationService();
+    
+    const statusMessages: { [key: string]: string } = {
+      'pending': 'Your order is being processed',
+      'confirmed': 'Your order has been confirmed',
+      'processing': 'Your order is being prepared',
+      'shipped': 'Your order has been shipped and is on its way',
+      'delivered': 'Your order has been delivered successfully',
+      'cancelled': 'Your order has been cancelled'
+    };
+
+    const message = statusMessages[status] || `Your order status has been updated to ${status}`;
+    
+    await notificationService.createNotification({
+        userId: order.userId,
+        type: 'order_update',
+        title: `Order ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+        message: `${message}. Order #${order.orderNumber}`,
+        priority: status === 'delivered' || status === 'cancelled' ? 'high' : 'normal',
+        channel: 'push',
+        data: {
+          orderId: id,
+          orderNumber: order.orderNumber,
+          newStatus: status
+        }
+      });
+
+    res.json({ message: 'Order status updated and notification sent' });
   } catch (err) {
     if (err instanceof Error && err.message === 'Order not found') {
       res.status(404).json({ message: 'Order not found' });

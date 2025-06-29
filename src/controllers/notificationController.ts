@@ -1,18 +1,16 @@
 import { Request, Response } from 'express';
-import { AuthRequest } from '../middleware/auth';
 import { NotificationService } from '../services/notificationService';
+import { AuthRequest } from '../middleware/auth';
 import Logger from '../utils/logger';
 
 const notificationService = new NotificationService();
 
 // Get user notifications
-export const getUserNotifications = async (req: Request, res: Response): Promise<void> => {
+export const getUserNotifications = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const authReq = req as AuthRequest;
-    const userId = authReq.user?.id;
-    
+    const userId = req.user?.id;
     if (!userId) {
-      res.status(401).json({ message: 'User not authenticated' });
+      res.status(401).json({ message: 'Unauthorized' });
       return;
     }
 
@@ -23,14 +21,11 @@ export const getUserNotifications = async (req: Request, res: Response): Promise
       {
         page: Number(page),
         limit: Number(limit),
-        unreadOnly: unreadOnly === 'true'
+        unreadOnly: Boolean(unreadOnly)
       }
     );
 
-    res.json({
-      success: true,
-      data: notifications
-    });
+    res.json(notifications);
   } catch (error) {
     Logger.error('Error fetching user notifications:', error);
     res.status(500).json({ message: 'Failed to fetch notifications' });
@@ -38,13 +33,11 @@ export const getUserNotifications = async (req: Request, res: Response): Promise
 };
 
 // Get unread notification count
-export const getUnreadCount = async (req: Request, res: Response): Promise<void> => {
+export const getUnreadCount = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const authReq = req as AuthRequest;
-    const userId = authReq.user?.id;
-    
+    const userId = req.user?.id;
     if (!userId) {
-      res.status(401).json({ message: 'User not authenticated' });
+      res.status(401).json({ message: 'Unauthorized' });
       return;
     }
 
@@ -52,7 +45,7 @@ export const getUnreadCount = async (req: Request, res: Response): Promise<void>
 
     res.json({
       success: true,
-      data: { unreadCount: count }
+      data: { count }
     });
   } catch (error) {
     Logger.error('Error fetching unread count:', error);
@@ -61,13 +54,11 @@ export const getUnreadCount = async (req: Request, res: Response): Promise<void>
 };
 
 // Get notification statistics
-export const getNotificationStats = async (req: Request, res: Response): Promise<void> => {
+export const getNotificationStats = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const authReq = req as AuthRequest;
-    const userId = authReq.user?.id;
-    
+    const userId = req.user?.id;
     if (!userId) {
-      res.status(401).json({ message: 'User not authenticated' });
+      res.status(401).json({ message: 'Unauthorized' });
       return;
     }
 
@@ -84,16 +75,14 @@ export const getNotificationStats = async (req: Request, res: Response): Promise
 };
 
 // Mark notification as read
-export const markAsRead = async (req: Request, res: Response): Promise<void> => {
+export const markAsRead = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const authReq = req as AuthRequest;
-    const userId = authReq.user?.id;
-    const { id } = req.params;
-    
+    const userId = req.user?.id;
     if (!userId) {
-      res.status(401).json({ message: 'User not authenticated' });
+      res.status(401).json({ message: 'Unauthorized' });
       return;
     }
+    const { id } = req.params;
 
     await notificationService.markAsRead(id, userId);
 
@@ -108,13 +97,11 @@ export const markAsRead = async (req: Request, res: Response): Promise<void> => 
 };
 
 // Mark all notifications as read
-export const markAllAsRead = async (req: Request, res: Response): Promise<void> => {
+export const markAllAsRead = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const authReq = req as AuthRequest;
-    const userId = authReq.user?.id;
-    
+    const userId = req.user?.id;
     if (!userId) {
-      res.status(401).json({ message: 'User not authenticated' });
+      res.status(401).json({ message: 'Unauthorized' });
       return;
     }
 
@@ -131,16 +118,14 @@ export const markAllAsRead = async (req: Request, res: Response): Promise<void> 
 };
 
 // Delete notification
-export const deleteNotification = async (req: Request, res: Response): Promise<void> => {
+export const deleteNotification = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const authReq = req as AuthRequest;
-    const userId = authReq.user?.id;
-    const { id } = req.params;
-    
+    const userId = req.user?.id;
     if (!userId) {
-      res.status(401).json({ message: 'User not authenticated' });
+      res.status(401).json({ message: 'Unauthorized' });
       return;
     }
+    const { id } = req.params;
 
     await notificationService.deleteNotification(id, userId);
 
@@ -151,5 +136,43 @@ export const deleteNotification = async (req: Request, res: Response): Promise<v
   } catch (error) {
     Logger.error('Error deleting notification:', error);
     res.status(500).json({ message: 'Failed to delete notification' });
+  }
+};
+
+// Stream notifications using Server-Sent Events
+export const streamNotifications = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ message: 'User not authenticated' });
+      return;
+    }
+
+    // Set headers for Server-Sent Events
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Cache-Control'
+    });
+
+    // Send initial connection message
+    res.write('data: {"type":"connected","message":"Notification stream connected"}\n\n');
+
+    // Keep connection alive with periodic heartbeat
+    const heartbeat = setInterval(() => {
+      res.write('data: {"type":"heartbeat"}\n\n');
+    }, 30000);
+
+    // Clean up on client disconnect
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      res.end();
+    });
+
+  } catch (error) {
+    Logger.error('Error setting up notification stream:', error);
+    res.status(500).json({ message: 'Failed to setup notification stream' });
   }
 };

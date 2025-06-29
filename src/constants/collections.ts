@@ -14,6 +14,7 @@ export const COLLECTIONS = {
   STOCK_ALERTS: 'stock_alerts',
   STOCK_RESERVATIONS: 'stock_reservations',
   COUPONS: 'coupons',
+  COUPON_USAGE: 'coupon_usage',
   NOTIFICATIONS: 'notifications',
   NOTIFICATION_PREFERENCES: 'notification_preferences',
   NOTIFICATION_TEMPLATES: 'notificationTemplates'

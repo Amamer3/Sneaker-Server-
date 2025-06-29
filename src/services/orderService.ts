@@ -4,9 +4,7 @@ import { DocumentData, Query } from '@google-cloud/firestore';
 import { admin } from '../config/firebase';
 import { Order, OrderItem, OrderTracking, PaymentInfo, OrderDiscount } from '../models/Order';
 import { Cart } from '../models/Cart';
-import { InventoryService } from './inventoryService';
 
-const inventoryService = new InventoryService();
 import { NotificationService } from './notificationService';
 import { CouponService } from './couponService';
 import { updateProductSales } from './productService';
@@ -20,36 +18,7 @@ interface GetOrdersResult {
 
 export async function createOrder(order: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>, userId?: string): Promise<Order> {
   try {
-    // Validate inventory availability
-    for (const item of order.items) {
-      const inventory = await inventoryService.getProductInventory(item.productId);
-      if (!inventory || inventory.availableQuantity < item.quantity) {
-        throw new Error(`Insufficient stock for product ${item.productId}`);
-      }
-    }
-
-    // Reserve stock for order items
-    const reservations: string[] = [];
     const tempOrderId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
-    
-    try {
-      for (const item of order.items) {
-        const reservation = await inventoryService.reserveStock(
-          item.productId,
-          item.quantity,
-          tempOrderId,
-          expiresAt
-        );
-        reservations.push(reservation.id);
-      }
-    } catch (error) {
-      // Release any successful reservations if one fails
-      for (const reservationId of reservations) {
-        await inventoryService.releaseReservation(reservationId);
-      }
-      throw error;
-    }
 
     // Validate and apply coupons if provided
     let finalTotal = order.subtotal;
@@ -120,7 +89,7 @@ export async function createOrder(order: Omit<Order, 'id' | 'createdAt' | 'updat
       shippingCost,
       tax,
       discounts,
-      reservationIds: reservations,
+
       tracking: [{
         status: 'pending',
         message: 'Order placed successfully',
@@ -302,50 +271,14 @@ export async function updateOrderStatus(
 
     // Handle status-specific logic
     if (status === 'confirmed') {
-      // Deduct inventory when order is confirmed
+      // Update product sales count
       for (const item of order.items) {
-        await inventoryService.updateStock(
-          item.productId,
-          -item.quantity,
-          'sale',
-          updatedBy || 'system',
-          'main',
-          `Order ${id} confirmed`
-        );
-        
-        // Update product sales count
         await updateProductSales(item.productId, item.quantity);
-      }
-
-      // Release reservations
-      if (order.reservationIds) {
-        for (const reservationId of order.reservationIds) {
-          await inventoryService.releaseReservation(reservationId);
-        }
       }
     }
 
     if (status === 'cancelled') {
-      // Release stock reservations
-      if (order.reservationIds) {
-        for (const reservationId of order.reservationIds) {
-          await inventoryService.releaseReservation(reservationId);
-        }
-      }
-
-      // If order was already confirmed, add stock back
-      if (order.status === 'confirmed' || order.status === 'shipped') {
-        for (const item of order.items) {
-          await inventoryService.updateStock(
-            item.productId,
-            item.quantity,
-            'return',
-            updatedBy || 'system',
-            'main',
-            `Order ${id} cancelled - stock returned`
-          );
-        }
-      }
+      console.log(`Order ${id} cancelled`);
     }
 
     if (status === 'delivered') {
