@@ -29,12 +29,27 @@ export class CouponService {
   async getAllCoupons(): Promise<Coupon[]> {
     try {
       const snapshot = await this.collection.get();
-      return snapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id,
-        startDate: doc.data().startDate.toDate(),
-        endDate: doc.data().endDate.toDate()
-      })) as Coupon[];
+      return snapshot.docs.map(doc => {
+        const data = doc.data();
+        let startDate: Date | undefined;
+        let endDate: Date | undefined;
+        try {
+          startDate = data.startDate?.toDate ? data.startDate.toDate() : (data.startDate ? new Date(data.startDate) : undefined);
+        } catch {
+          startDate = undefined;
+        }
+        try {
+          endDate = data.endDate?.toDate ? data.endDate.toDate() : (data.endDate ? new Date(data.endDate) : undefined);
+        } catch {
+          endDate = undefined;
+        }
+        return {
+          ...data,
+          id: doc.id,
+          startDate,
+          endDate
+        } as Coupon;
+      });
     } catch (error) {
       console.error('Error getting coupons:', error);
       throw new Error('Failed to get coupons');
@@ -76,6 +91,7 @@ export class CouponService {
       const now = new Date();
       const couponData = {
         ...data,
+        code: data.code.toUpperCase(), // Always store code as uppercase
         usageCount: 0,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
@@ -142,8 +158,9 @@ export class CouponService {
     coupon?: Coupon;
   }> {
     try {
+      // Always compare codes in uppercase
       const snapshot = await this.collection
-        .where('code', '==', code)
+        .where('code', '==', code.toUpperCase())
         .where('isActive', '==', true)
         .limit(1)
         .get();
@@ -181,7 +198,7 @@ export class CouponService {
 
       // Check user-specific usage limit
       if (coupon.userUsageLimit) {
-        const userUsage = await this.getUserCouponUsage(userId, code);
+        const userUsage = await this.getUserCouponUsage(userId, code.toUpperCase());
         if (userUsage >= coupon.userUsageLimit) {
           return { 
             isValid: false, 

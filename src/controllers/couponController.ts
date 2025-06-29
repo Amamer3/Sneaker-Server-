@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { CouponService } from '../services/couponService';
+import { Timestamp } from 'firebase-admin/firestore';
 
 const couponService = new CouponService();
 
@@ -39,6 +40,15 @@ export const createCoupon = async (req: AuthRequest, res: Response) => {
   try {
     const couponData = req.body;
     const userId = req.user!.id;
+
+    // Convert startDate and endDate to Firestore Timestamps if they are strings
+    if (couponData.startDate && typeof couponData.startDate === 'string') {
+      couponData.startDate = Timestamp.fromDate(new Date(couponData.startDate));
+    }
+    if (couponData.endDate && typeof couponData.endDate === 'string') {
+      couponData.endDate = Timestamp.fromDate(new Date(couponData.endDate));
+    }
+
     const newCoupon = await couponService.createCoupon(couponData, userId);
     res.status(201).json(newCoupon);
   } catch (error) {
@@ -81,14 +91,19 @@ export const deleteCoupon = async (req: AuthRequest, res: Response) => {
 
 export const validateCoupon = async (req: AuthRequest, res: Response) => {
   try {
-    const { code, cartTotal } = req.body;
-    const userId = req.user?.id;
+    const { code, userId, cart, cartTotal } = req.body;
 
     if (!code || typeof cartTotal !== 'number') {
       return res.status(400).json({ message: 'Coupon code and cart total are required' });
     }
 
-    const validation = await couponService.validateCoupon(code, userId || '', null, cartTotal);
+    // Pass cart and userId if provided, else fallback to req.user?.id
+    const validation = await couponService.validateCoupon(
+      code,
+      userId || req.user?.id || '',
+      cart || null,
+      cartTotal
+    );
     res.json(validation);
   } catch (error) {
     console.error('Error validating coupon:', error);

@@ -135,7 +135,8 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/analytics', analyticsRoutes);
-app.use('/api/admin/coupons', couponRoutes); // Mount coupon routes under admin
+app.use('/api/admin/coupons', couponRoutes); // Admin endpoints
+app.use('/api/coupons', couponRoutes); // Public endpoints (e.g. /api/coupons/validate)
 app.use('/api/admin', adminRoutes);
 app.use('/api/payment', paymentRoutes); // Mount payment routes
 app.use('/api/delivery', deliveryRoutes);

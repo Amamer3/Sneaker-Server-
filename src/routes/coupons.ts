@@ -8,6 +8,11 @@ const router = Router();
 const wrapHandler = (handler: (req: AuthRequest, res: Response) => Promise<any>): RequestHandler => 
   (req, res, next) => handler(req as AuthRequest, res).catch(next);
 
+// --- PUBLIC ROUTE: Validate coupon (no auth required) ---
+// This must be before admin middleware and routes
+const asyncHandler = (fn: any) => (req: any, res: any, next: any) => Promise.resolve(fn(req, res, next)).catch(next);
+router.post('/validate', asyncHandler(couponController.validateCoupon));
+
 // Admin routes - all require authentication and admin role
 router.use(authenticateJWT);
 router.use(authorizeRoles('admin'));
@@ -26,8 +31,5 @@ router.put('/:id', wrapHandler(couponController.updateCoupon));
 
 // Delete coupon (admin)
 router.delete('/:id', wrapHandler(couponController.deleteCoupon));
-
-// Validate coupon (can be used by both admin and customers)
-router.post('/validate', wrapHandler(couponController.validateCoupon));
 
 export default router;
