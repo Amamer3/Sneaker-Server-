@@ -312,17 +312,46 @@ export class CartService {
       const issues: any[] = [];
 
       for (const item of cart.items) {
-        // Check price changes
+        // Check stock availability
         const productDoc = await this.productsCollection.doc(item.productId).get();
-        if (productDoc.exists) {
-          const currentPrice = productDoc.data()?.price;
-          if (currentPrice && Math.abs(currentPrice - item.price) > 0.01) {
-            issues.push({
-              productId: item.productId,
-              issue: 'price_changed',
-              currentPrice
-            });
-          }
+        if (!productDoc.exists) {
+          issues.push({
+            productId: item.productId,
+            issue: 'out_of_stock',
+            availableStock: 0
+          });
+          continue;
+        }
+
+        const productData = productDoc.data();
+        const availableStock = productData?.stock || 0;
+        const inStock = productData?.inStock || false;
+
+        // Check if product is out of stock
+        if (!inStock || availableStock === 0) {
+          issues.push({
+            productId: item.productId,
+            issue: 'out_of_stock',
+            availableStock: 0
+          });
+        }
+        // Check if requested quantity exceeds available stock
+        else if (item.quantity > availableStock) {
+          issues.push({
+            productId: item.productId,
+            issue: 'insufficient_stock',
+            availableStock
+          });
+        }
+
+        // Check price changes
+        const currentPrice = productData?.price;
+        if (currentPrice && Math.abs(currentPrice - item.price) > 0.01) {
+          issues.push({
+            productId: item.productId,
+            issue: 'price_changed',
+            currentPrice
+          });
         }
       }
 
@@ -333,6 +362,65 @@ export class CartService {
     } catch (error) {
       console.error('Error validating cart inventory:', error);
       throw new Error('Failed to validate cart inventory');
+    }
+  }
+
+  // Bulk stock check for multiple items (used during checkout)
+  async bulkStockCheck(items: Array<{ productId: string; quantity: number }>): Promise<{
+    valid: boolean;
+    issues: Array<{
+      productId: string;
+      issue: 'out_of_stock' | 'insufficient_stock' | 'product_not_found';
+      availableStock?: number;
+      requestedQuantity: number;
+    }>;
+  }> {
+    try {
+      const issues: any[] = [];
+
+      for (const item of items) {
+        const productDoc = await this.productsCollection.doc(item.productId).get();
+        
+        if (!productDoc.exists) {
+          issues.push({
+            productId: item.productId,
+            issue: 'product_not_found',
+            requestedQuantity: item.quantity
+          });
+          continue;
+        }
+
+        const productData = productDoc.data();
+        const availableStock = productData?.stock || 0;
+        const inStock = productData?.inStock || false;
+
+        // Check if product is out of stock
+        if (!inStock || availableStock === 0) {
+          issues.push({
+            productId: item.productId,
+            issue: 'out_of_stock',
+            availableStock: 0,
+            requestedQuantity: item.quantity
+          });
+        }
+        // Check if requested quantity exceeds available stock
+        else if (item.quantity > availableStock) {
+          issues.push({
+            productId: item.productId,
+            issue: 'insufficient_stock',
+            availableStock,
+            requestedQuantity: item.quantity
+          });
+        }
+      }
+
+      return {
+        valid: issues.length === 0,
+        issues
+      };
+    } catch (error) {
+      console.error('Error performing bulk stock check:', error);
+      throw new Error('Stock validation failed: bulkStockCheck is not defined');
     }
   }
 

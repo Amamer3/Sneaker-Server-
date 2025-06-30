@@ -43,4 +43,21 @@ router.post('/admin/register',
   }
 );
 
+// Admin password management endpoints
+router.post('/admin/change-password', 
+  authenticateJWT, 
+  (req: Request, res: Response, next: NextFunction) => {
+    const authReq = req as AuthRequest;
+    authController.changeAdminPassword(authReq, res, next);
+  }
+);
+
+router.post('/admin/validate-password', 
+  authenticateJWT, 
+  (req: Request, res: Response, next: NextFunction) => {
+    const authReq = req as AuthRequest;
+    authController.validateAdminPassword(authReq, res, next);
+  }
+);
+
 export default router;

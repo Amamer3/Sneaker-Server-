@@ -7,7 +7,10 @@ const couponService = new CouponService();
 
 export const getAllCoupons = async (req: AuthRequest, res: Response) => {
   try {
+    console.log('Getting all coupons - User:', req.user?.email);
     const coupons = await couponService.getAllCoupons();
+    console.log('Retrieved coupons count:', coupons.length);
+    console.log('Coupons data:', JSON.stringify(coupons, null, 2));
     res.json(coupons);
   } catch (error) {
     console.error('Error getting all coupons:', error);

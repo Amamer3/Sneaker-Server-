@@ -123,3 +123,22 @@ export const updateUser = async (req: AuthRequest, res: Response, next: NextFunc
     next(err);
   }
 };
+
+export const getAdminActivity = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user || req.user.role !== 'admin') {
+      res.status(403).json({ message: 'Forbidden: Admin access required' });
+      return;
+    }
+
+    const { page = 1, limit = 20 } = req.query;
+    const activity = await userService.getAdminActivity(req.user.id, {
+      page: Number(page),
+      limit: Number(limit)
+    });
+    
+    res.json(activity);
+  } catch (err) {
+    next(err);
+  }
+};

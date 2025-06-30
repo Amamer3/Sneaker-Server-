@@ -28,7 +28,10 @@ export class CouponService {
   // Get all coupons
   async getAllCoupons(): Promise<Coupon[]> {
     try {
+      console.log('Fetching coupons from collection:', COLLECTIONS.COUPONS);
       const snapshot = await this.collection.get();
+      console.log('Snapshot size:', snapshot.size);
+      console.log('Snapshot empty:', snapshot.empty);
       return snapshot.docs.map(doc => {
         const data = doc.data();
         let startDate: Date | undefined;

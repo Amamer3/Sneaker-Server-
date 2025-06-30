@@ -118,3 +118,47 @@ export const createAdmin = async (req: AuthRequest, res: Response, next: NextFun
     next(err);
   }
 };
+
+// Change admin password
+export const changeAdminPassword = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user || req.user.role !== 'admin') {
+      res.status(403).json({ message: 'Forbidden: Admin access required' });
+      return;
+    }
+
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({ message: 'Current password and new password are required' });
+      return;
+    }
+
+    const result = await authService.changePassword(req.user.id, currentPassword, newPassword);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Validate admin password
+export const validateAdminPassword = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user || req.user.role !== 'admin') {
+      res.status(403).json({ message: 'Forbidden: Admin access required' });
+      return;
+    }
+
+    const { currentPassword } = req.body;
+    
+    if (!currentPassword) {
+      res.status(400).json({ message: 'Current password is required' });
+      return;
+    }
+
+    const result = await authService.validatePassword(req.user.id, currentPassword);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};

@@ -560,6 +560,36 @@ export async function changePassword(userId: string, currentPassword: string, ne
   }
 }
 
+export async function validatePassword(userId: string, currentPassword: string): Promise<{ valid: boolean; message: string }> {
+  try {
+    const userDoc = await usersCollection.doc(userId).get();
+    if (!userDoc.exists) {
+      throw new Error('User not found');
+    }
+
+    const userData = userDoc.data() as User;
+    
+    // Verify current password
+    if (!userData.password) {
+      return { valid: false, message: 'Password validation failed' };
+    }
+    
+    const isPasswordValid = await bcrypt.compare(currentPassword, userData.password);
+    
+    if (isPasswordValid) {
+      return { valid: true, message: 'Password is valid' };
+    } else {
+      return { valid: false, message: 'Invalid password' };
+    }
+  } catch (error) {
+    console.error('Password validation error:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Failed to validate password');
+  }
+}
+
 // User Management (Admin functions)
 export async function getAllUsers(options: {
   page?: number;

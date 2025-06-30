@@ -18,9 +18,7 @@ import './config/firebase';
 import './config/cloudinary';
 
 // Initialize Redis client
-// import redis from './config/redis';
 import Logger from './utils/logger';
-import { FirestoreService } from './utils/firestore';
 
 const app = express();
 
@@ -90,18 +88,7 @@ app.use((req, res, next) => {
 // }
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    services: {
-      firestore: 'connected',
-      redis: 'optional'
-    }
-  });
-});
+// app.get('/api/health', healthChecker.middleware); // Temporarily disabled
 
 // Basic root endpoint
 app.get('/', (req, res) => {
@@ -124,8 +111,6 @@ import couponRoutes from './routes/coupons';
 import monitoringRoutes from './routes/monitoring';
 import systemRoutes from './routes/system';
 
-import notificationRoutes from './routes/notifications';
-
 // Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
@@ -135,16 +120,13 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/analytics', analyticsRoutes);
-app.use('/api/admin/coupons', couponRoutes); // Admin endpoints
-app.use('/api/coupons', couponRoutes); // Public endpoints (e.g. /api/coupons/validate)
 app.use('/api/admin', adminRoutes);
 app.use('/api/payment', paymentRoutes); // Mount payment routes
 app.use('/api/delivery', deliveryRoutes);
+app.use('/api/coupons', couponRoutes);
 
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/system', systemRoutes);
-
-app.use('/api/notifications', notificationRoutes);
 
 // Health check route
 app.get('/', (req, res) => {

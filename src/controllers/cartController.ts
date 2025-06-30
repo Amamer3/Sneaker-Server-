@@ -261,10 +261,112 @@ export const clearCart = async (req: AuthRequest, res: Response) => {
 export const processCheckout = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    // TODO: Implement checkout logic
-    res.status(501).json({ message: 'Checkout not implemented yet' });
+    const { shippingAddress, paymentMethod = 'paystack' } = req.body;
+
+    // Validate shipping address
+    if (!shippingAddress?.street || !shippingAddress.city || 
+        !shippingAddress.state || !shippingAddress.country || !shippingAddress.postalCode) {
+      return res.status(400).json({ message: 'Complete shipping address is required' });
+    }
+
+    // Get user's cart
+    const cart = await cartService.getCart(userId);
+    if (!cart || !cart.items.length) {
+      return res.status(400).json({ message: 'Cart is empty' });
+    }
+
+    // Perform bulk stock check
+    const stockCheck = await cartService.bulkStockCheck(
+      cart.items.map(item => ({
+        productId: item.productId,
+        quantity: item.quantity
+      }))
+    );
+
+    if (!stockCheck.valid) {
+      return res.status(400).json({ 
+        message: 'Stock validation failed', 
+        issues: stockCheck.issues 
+      });
+    }
+
+    // Calculate total
+    const subtotal = cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const shippingCost = 0; // Free shipping for now
+    const tax = 0; // No tax for now
+    const total = subtotal + shippingCost + tax;
+
+    // Create order data
+    const orderData = {
+      userId,
+      items: cart.items.map(item => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        name: item.name || '',
+        price: item.price,
+        image: item.image || ''
+      })),
+      orderNumber: `ORD-${Date.now()}`,
+      subtotal,
+      tax,
+      taxRate: 0,
+      shippingCost,
+      totalDiscount: 0,
+      total,
+      totalAmount: total,
+      currency: 'USD',
+      shippingAddress,
+      status: 'pending' as const,
+      paymentStatus: 'pending' as const,
+      shipping: {
+        name: req.user?.name || 'N/A',
+        email: req.user?.email || 'N/A',
+        phone: shippingAddress.phone || 'N/A',
+        address: shippingAddress,
+        method: 'standard' as const,
+        cost: shippingCost
+      },
+      payment: {
+        method: paymentMethod,
+        status: 'pending' as const,
+        amount: total,
+        currency: 'USD'
+      },
+      user: {
+        id: userId,
+        email: req.user?.email || 'N/A',
+        name: req.user?.name || 'N/A'
+      }
+    };
+
+    // Create the order using order service
+    const orderService = await import('../services/orderService');
+    const order = await orderService.createOrder({
+      ...orderData,
+      priority: 'normal',
+      source: 'web'
+    }, userId);
+
+    // Clear the cart after successful order creation
+    await cartService.clearCart(userId);
+
+    res.status(201).json({ 
+      message: 'Order created successfully', 
+      order: {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        total: order.total,
+        status: order.status,
+        paymentStatus: order.paymentStatus
+      }
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Error processing checkout', error });
+    console.error('Checkout error:', error);
+    if (error instanceof Error && error.message.includes('bulkStockCheck is not defined')) {
+      res.status(500).json({ message: 'Stock validation failed: bulkStockCheck is not defined' });
+    } else {
+      res.status(500).json({ message: 'Error processing checkout', error: error instanceof Error ? error.message : 'Unknown error' });
+    }
   }
 };
 

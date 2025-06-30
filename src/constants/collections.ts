@@ -8,6 +8,7 @@ export const COLLECTIONS = {
   CATEGORIES: 'categories',
   METRICS: 'metrics',
   LOGS: 'logs',
+  LOGIN_LOGS: 'login_logs',
   ALERTS: 'alerts',
   INVENTORY: 'inventory',
   STOCK_MOVEMENTS: 'stock_movements',

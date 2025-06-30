@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { authenticateJWT, authorizeRoles, AuthRequest } from '../middleware/auth';
 import * as dashboardController from '../controllers/dashboardController';
 import * as userController from '../controllers/userController';
+import * as couponController from '../controllers/couponController';
 
 import adminNotificationRoutes from './admin/notifications';
 
@@ -27,6 +28,38 @@ router.delete('/users/:userId', (req: Request, res: Response, next: NextFunction
 });
 
 
+
+// Admin profile activity endpoint
+router.get('/profile/activity', (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
+  userController.getAdminActivity(authReq, res, next);
+});
+
+// Admin coupon routes
+router.get('/coupons', (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
+  couponController.getAllCoupons(authReq, res).catch(next);
+});
+
+router.get('/coupons/stats', (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
+  couponController.getCouponStats(authReq, res).catch(next);
+});
+
+router.post('/coupons', (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
+  couponController.createCoupon(authReq, res).catch(next);
+});
+
+router.put('/coupons/:id', (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
+  couponController.updateCoupon(authReq, res).catch(next);
+});
+
+router.delete('/coupons/:id', (req: Request, res: Response, next: NextFunction) => {
+  const authReq = req as AuthRequest;
+  couponController.deleteCoupon(authReq, res).catch(next);
+});
 
 // Mount admin notification routes
 router.use('/notifications', adminNotificationRoutes);
