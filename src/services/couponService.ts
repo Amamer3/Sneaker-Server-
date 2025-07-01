@@ -149,8 +149,8 @@ export class CouponService {
     }
   }
 
-  // Validate a coupon
-  async validateCoupon(
+  // Validate a coupon with full validation
+  async validateCouponFull(
     code: string, 
     userId: string, 
     cart: StoredCart | null, 
@@ -247,7 +247,7 @@ export class CouponService {
     total: number
   ): Promise<{ discountAmount: number; finalAmount: number; coupon: Coupon | null }> {
     // Validate coupon
-    const validation = await this.validateCoupon(couponCode, userId, cart, total);
+    const validation = await this.validateCouponFull(couponCode, userId, cart, total);
     if (!validation.isValid || !validation.coupon) {
       return { discountAmount: 0, finalAmount: total, coupon: null };
     }
@@ -285,5 +285,69 @@ export class CouponService {
       console.error('Error getting user coupon usage:', error);
       return 0;
     }
+  }
+
+  // Simple validateCoupon method for cart service
+  async validateCoupon(code: string): Promise<Coupon> {
+    try {
+      const snapshot = await this.collection
+        .where('code', '==', code.toUpperCase())
+        .where('isActive', '==', true)
+        .limit(1)
+        .get();
+
+      if (snapshot.empty) {
+        throw new Error('Coupon not found');
+      }
+
+      const coupon = {
+        ...snapshot.docs[0].data(),
+        id: snapshot.docs[0].id,
+        startDate: snapshot.docs[0].data().startDate.toDate(),
+        endDate: snapshot.docs[0].data().endDate.toDate()
+      } as Coupon;
+
+      const now = new Date();
+      if (now < coupon.startDate || now > coupon.endDate) {
+        throw new Error('Coupon has expired');
+      }
+
+      if (coupon.usageLimit && coupon.usageCount >= coupon.usageLimit) {
+        throw new Error('Coupon usage limit reached');
+      }
+
+      return coupon;
+    } catch (error) {
+      console.error('Error validating coupon:', error);
+      throw error;
+    }
+  }
+
+  // Calculate discount amount
+  calculateDiscount(coupon: Coupon, total: number): number {
+    let discountAmount = 0;
+    
+    if (coupon.minPurchase && total < coupon.minPurchase) {
+      throw new Error(`Minimum purchase amount of $${coupon.minPurchase} required`);
+    }
+
+    if (coupon.type === 'percentage') {
+      discountAmount = (total * coupon.value) / 100;
+      if (coupon.maxDiscount && discountAmount > coupon.maxDiscount) {
+        discountAmount = coupon.maxDiscount;
+      }
+    } else if (coupon.type === 'fixed') {
+      discountAmount = coupon.value;
+      if (coupon.maxDiscount && discountAmount > coupon.maxDiscount) {
+        discountAmount = coupon.maxDiscount;
+      }
+    }
+
+    // Ensure discount does not exceed total
+    if (discountAmount > total) {
+      discountAmount = total;
+    }
+
+    return discountAmount;
   }
 }

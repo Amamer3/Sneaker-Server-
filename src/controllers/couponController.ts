@@ -101,7 +101,7 @@ export const validateCoupon = async (req: AuthRequest, res: Response) => {
     }
 
     // Pass cart and userId if provided, else fallback to req.user?.id
-    const validation = await couponService.validateCoupon(
+    const validation = await couponService.validateCouponFull(
       code,
       userId || req.user?.id || '',
       cart || null,

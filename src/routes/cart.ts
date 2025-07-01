@@ -130,4 +130,10 @@ router.get('/', wrapHandler(cartController.getUserCart));
 router.post('/sync', authenticateJWT, wrapHandler(cartController.syncCart));
 router.post('/checkout', authenticateJWT, wrapHandler(cartController.processCheckout));
 
+// Apply coupon to cart
+router.post('/apply-coupon', authenticateJWT, wrapHandler(cartController.applyCoupon));
+
+// Remove coupon from cart
+router.post('/remove-coupon', authenticateJWT, wrapHandler(cartController.removeCoupon));
+
 export default router;

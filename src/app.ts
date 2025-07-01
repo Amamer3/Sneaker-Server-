@@ -111,6 +111,7 @@ import deliveryRoutes from './routes/delivery';
 
 import monitoringRoutes from './routes/monitoring';
 import systemRoutes from './routes/system';
+import couponsRoutes from './routes/coupons';
 
 
 // Mount routes
@@ -123,6 +124,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/coupons', couponsRoutes);
 app.use('/api/payment', paymentRoutes); // Mount payment routes
 app.use('/api/delivery', deliveryRoutes);
 
@@ -131,7 +133,7 @@ app.use('/api/system', systemRoutes);
 
 // Health check route
 app.get('/', (req, res) => {
-  res.json({ message: 'Sneaker Store API is running.' });
+  res.json({ message: 'KicksIntel API is running.' });
 });
 
 // Global error handler

@@ -398,3 +398,47 @@ export const syncCart = async (req: AuthRequest, res: Response) => {
     });
   }
 };
+
+export const applyCoupon = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { couponCode } = req.body;
+
+    if (!couponCode) {
+      return res.status(400).json({ message: 'Coupon code is required' });
+    }
+
+    const result = await cartService.applyCoupon(userId, couponCode);
+    const enrichedCart = await enrichCartWithProductDetails(result.cart);
+    
+    res.json({
+      message: 'Coupon applied successfully',
+      cart: enrichedCart,
+      discount: result.discount
+    });
+  } catch (error) {
+    console.error('Apply coupon error:', error);
+    res.status(400).json({ 
+      message: error instanceof Error ? error.message : 'Error applying coupon'
+    });
+  }
+};
+
+export const removeCoupon = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    
+    const cart = await cartService.removeCoupon(userId);
+    const enrichedCart = await enrichCartWithProductDetails(cart);
+    
+    res.json({
+      message: 'Coupon removed successfully',
+      cart: enrichedCart
+    });
+  } catch (error) {
+    console.error('Remove coupon error:', error);
+    res.status(500).json({ 
+      message: error instanceof Error ? error.message : 'Error removing coupon'
+    });
+  }
+};

@@ -153,3 +153,43 @@ export const deleteNotification = async (req: Request, res: Response): Promise<v
     res.status(500).json({ message: 'Failed to delete notification' });
   }
 };
+
+// Stream notifications via Server-Sent Events
+export const streamNotifications = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as AuthRequest;
+    const userId = authReq.user?.id;
+    
+    if (!userId) {
+      res.status(401).json({ message: 'User not authenticated' });
+      return;
+    }
+
+    // Set headers for Server-Sent Events
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Cache-Control'
+    });
+
+    // Send initial connection message
+    res.write('data: {"type":"connected","message":"Notification stream connected"}\n\n');
+
+    // Keep connection alive with periodic heartbeat
+    const heartbeat = setInterval(() => {
+      res.write('data: {"type":"heartbeat"}\n\n');
+    }, 30000);
+
+    // Clean up on client disconnect
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      res.end();
+    });
+
+  } catch (error) {
+    Logger.error('Error setting up notification stream:', error);
+    res.status(500).json({ message: 'Failed to setup notification stream' });
+  }
+};

@@ -44,7 +44,7 @@ export async function createOrder(order: Omit<Order, 'id' | 'createdAt' | 'updat
          updatedAt: new Date()
        };
       
-      const validation = await couponService.validateCoupon(
+      const validation = await couponService.validateCouponFull(
         order.couponCode, 
         userId, 
         tempCart, 

@@ -440,7 +440,7 @@ export class CartService {
       }
 
       // Pass cart as StoredCart for type safety
-      const validation = await this.couponService.validateCoupon(couponCode, userId, cart as StoredCart, cart.total);
+      const validation = await this.couponService.validateCouponFull(couponCode, userId, cart as StoredCart, cart.total);
       if (!validation.isValid) {
         throw new Error(validation.error || 'Invalid or expired coupon');
       }
@@ -743,6 +743,68 @@ export class CartService {
     } catch (error) {
       console.error('Error getting cart analytics:', error);
       throw new Error('Failed to get cart analytics');
+    }
+  }
+
+  async applyCoupon(userId: string, couponCode: string): Promise<{ cart: Cart; discount: number }> {
+    try {
+      // Validate coupon
+      const coupon = await this.couponService.validateCoupon(couponCode);
+      
+      // Get current cart
+      const cart = await this.getCart(userId);
+      if (!cart) {
+        throw new Error('Cart not found');
+      }
+
+      // Calculate discount
+      const discount = this.couponService.calculateDiscount(coupon, cart.total);
+      
+      // Update cart with coupon
+      const updatedCart = {
+        ...cart,
+        couponCode: couponCode,
+        discount: discount,
+        total: cart.total - discount,
+        updatedAt: Timestamp.now()
+      };
+
+      await this.collection.doc(userId).set(this.toFirestoreCart(updatedCart));
+      
+      return {
+        cart: this.fromFirestoreCart(updatedCart),
+        discount
+      };
+    } catch (error) {
+      console.error('Error applying coupon:', error);
+      throw error;
+    }
+  }
+
+  async removeCoupon(userId: string): Promise<Cart> {
+    try {
+      const cart = await this.getCart(userId);
+      if (!cart) {
+        throw new Error('Cart not found');
+      }
+
+      // Recalculate total without discount
+      const originalTotal = cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      
+      const updatedCart = {
+        ...cart,
+        couponCode: undefined,
+        discount: 0,
+        total: originalTotal,
+        updatedAt: Timestamp.now()
+      };
+
+      await this.collection.doc(userId).set(this.toFirestoreCart(updatedCart));
+      
+      return this.fromFirestoreCart(updatedCart);
+    } catch (error) {
+      console.error('Error removing coupon:', error);
+      throw error;
     }
   }
 }
