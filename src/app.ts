@@ -112,6 +112,7 @@ import deliveryRoutes from './routes/delivery';
 import monitoringRoutes from './routes/monitoring';
 import systemRoutes from './routes/system';
 import couponsRoutes from './routes/coupons';
+import healthRoutes from './routes/health';
 
 
 // Mount routes
@@ -130,6 +131,7 @@ app.use('/api/delivery', deliveryRoutes);
 
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/system', systemRoutes);
+app.use('/api/health', healthRoutes);
 
 // Health check route
 app.get('/', (req, res) => {
