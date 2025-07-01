@@ -1,4 +1,4 @@
-import bcrypt from 'bcryptjs';
+import * as bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { admin } from '../config/firebase';
 import { User, UserProfile, UserPreferences, UserAnalytics } from '../models/User';
