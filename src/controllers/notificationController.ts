@@ -153,3 +153,47 @@ export const deleteNotification = async (req: Request, res: Response): Promise<v
     res.status(500).json({ message: 'Failed to delete notification' });
   }
 };
+
+// Stream notifications using Server-Sent Events
+export const streamNotifications = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as AuthRequest;
+    const userId = authReq.user?.id;
+    
+    if (!userId) {
+      res.status(401).json({ message: 'User not authenticated' });
+      return;
+    }
+
+    // Set headers for Server-Sent Events
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Cache-Control'
+    });
+
+    // Send initial connection message
+    res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Notification stream connected' })}\n\n`);
+
+    // Set up periodic heartbeat to keep connection alive
+    const heartbeat = setInterval(() => {
+      res.write(`data: ${JSON.stringify({ type: 'heartbeat', timestamp: new Date().toISOString() })}\n\n`);
+    }, 30000); // Send heartbeat every 30 seconds
+
+    // Handle client disconnect
+    req.on('close', () => {
+      Logger.info(`Notification stream closed for user: ${userId}`);
+      clearInterval(heartbeat);
+    });
+
+    // Keep the connection open
+    // In a real implementation, you would listen for new notifications
+    // and send them to the client using res.write()
+    
+  } catch (error) {
+    Logger.error('Error setting up notification stream:', error);
+    res.status(500).json({ message: 'Failed to setup notification stream' });
+  }
+};
