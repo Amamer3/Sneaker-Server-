@@ -10,7 +10,6 @@ export const COLLECTIONS = {
   LOGS: 'logs',
   LOGIN_LOGS: 'login_logs',
   ALERTS: 'alerts',
-  INVENTORY: 'inventory',
   STOCK_MOVEMENTS: 'stock_movements',
   STOCK_ALERTS: 'stock_alerts',
   STOCK_RESERVATIONS: 'stock_reservations',
