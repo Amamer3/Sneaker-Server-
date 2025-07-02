@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import { Request, Response } from 'express';
 import { AnalyticsService } from '../services/analyticsService';
 import { TimeFrame } from '../types/analytics';
 import { ValidatedAnalyticsQuery } from '../middleware/validation/analytics';

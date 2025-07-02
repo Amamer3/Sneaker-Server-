@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { Router } from 'express';
 import { authenticateJWT, authorizeRoles } from '../middleware/auth';
 import { validateAnalyticsQuery } from '../middleware/validation/analytics';
 import { analyticsRateLimit } from '../middleware/rateLimit';
