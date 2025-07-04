@@ -50,13 +50,17 @@ export const getRevenueStats = async (req: Request & { analyticsQuery?: Validate
 };
 
 // Order Analytics
-export const getOrderStats = async (req: Request, res: Response) => {
+export const getOrderStats = async (req: Request & { analyticsQuery?: ValidatedAnalyticsQuery }, res: Response) => {
   try {
-    const stats = await analyticsService.getOrderStats();
+    const { startDate, endDate } = req.analyticsQuery || {};
+    const stats = await analyticsService.getOrderStats(startDate, endDate);
     res.json(stats);
   } catch (error) {
     console.error('Error getting order stats:', error);
-    res.status(500).json({ error: 'Failed to retrieve order statistics' });
+    res.status(500).json({ 
+      error: 'Failed to retrieve order statistics',
+      message: error instanceof Error ? error.message : 'An unknown error occurred'
+    });
   }
 };
 

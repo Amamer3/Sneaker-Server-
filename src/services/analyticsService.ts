@@ -10,6 +10,7 @@ import {
   TimeFrame
 } from '../types/analytics';
 import Logger from '../utils/logger';
+import * as FirebaseFirestore from 'firebase-admin/firestore';
 
 const DEFAULT_STATS: OverviewStats = {
   totalRevenue: 0,
@@ -26,9 +27,9 @@ const DEFAULT_STATS: OverviewStats = {
 };
 
 export class AnalyticsService {
-  private ordersCollection;
-  private productsCollection;
-  private usersCollection;
+  private ordersCollection: FirebaseFirestore.CollectionReference<FirebaseFirestore.DocumentData>;
+  private productsCollection: FirebaseFirestore.CollectionReference<FirebaseFirestore.DocumentData>;
+  private usersCollection: FirebaseFirestore.CollectionReference<FirebaseFirestore.DocumentData>;
 
   constructor() {
     this.ordersCollection = FirestoreService.collection(COLLECTIONS.ORDERS);
@@ -57,16 +58,16 @@ export class AnalyticsService {
       queryStartDate.setDate(queryStartDate.getDate() - 30); // Default to last 30 days if no start date
 
       // Get orders in date range
-      const orders = await this.ordersCollection
-        .where('createdAt', '>=', queryStartDate)
-        .where('createdAt', '<=', queryEndDate)
-        .get();
+      let query: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = this.ordersCollection;
+      query = query.where('createdAt', '>=', queryStartDate);
+      query = query.where('createdAt', '<=', queryEndDate);
+      const orders = await query.get();
 
       // Get users in date range
-      const users = await this.usersCollection
-        .where('createdAt', '>=', queryStartDate)
-        .where('createdAt', '<=', queryEndDate)
-        .get();
+      let usersQuery: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = this.usersCollection;
+      usersQuery = usersQuery.where('createdAt', '>=', queryStartDate);
+      usersQuery = usersQuery.where('createdAt', '<=', queryEndDate);
+      const users = await usersQuery.get();
 
       // Calculate totals for the period
       let totalRevenue = 0;
@@ -144,7 +145,9 @@ export class AnalyticsService {
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const orders = await this.ordersCollection.where('createdAt', '>=', today).get();
+      let query: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = this.ordersCollection;
+      query = query.where('createdAt', '>=', today);
+      const orders = await query.get();
       return orders.docs.reduce((sum, doc) => {
         const data = doc.data();
         return sum + (data.total || 0);
@@ -159,7 +162,9 @@ export class AnalyticsService {
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const orders = await this.ordersCollection.where('createdAt', '>=', today).get();
+      let query: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = this.ordersCollection;
+      query = query.where('createdAt', '>=', today);
+      const orders = await query.get();
       return orders.docs.length;
     } catch (error) {
       Logger.error('Error calculating today orders:', error);
@@ -171,7 +176,9 @@ export class AnalyticsService {
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const users = await this.usersCollection.where('createdAt', '>=', today).get();
+      let query: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = this.usersCollection;
+      query = query.where('createdAt', '>=', today);
+      const users = await query.get();
       return users.docs.length;
     } catch (error) {
       Logger.error('Error calculating today new customers:', error);
@@ -188,15 +195,17 @@ export class AnalyticsService {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
+      let ordersQuery: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = this.ordersCollection;
+      ordersQuery = ordersQuery.where('createdAt', '>=', yesterday);
+      ordersQuery = ordersQuery.where('createdAt', '<', today);
+      
+      let usersQuery: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = this.usersCollection;
+      usersQuery = usersQuery.where('createdAt', '>=', yesterday);
+      usersQuery = usersQuery.where('createdAt', '<', today);
+      
       const [orders, users] = await Promise.all([
-        this.ordersCollection
-          .where('createdAt', '>=', yesterday)
-          .where('createdAt', '<', today)
-          .get(),
-        this.usersCollection
-          .where('createdAt', '>=', yesterday)
-          .where('createdAt', '<', today)
-          .get()
+        ordersQuery.get(),
+        usersQuery.get()
       ]);
 
       return {
@@ -230,10 +239,9 @@ export class AnalyticsService {
       Logger.debug('Calculating fresh product stats');
       
       // Get top products by sales
-      const productsSnapshot = await this.productsCollection
-        .orderBy('totalSales', 'desc')
-        .limit(limit)
-        .get();
+      let query: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = this.productsCollection;
+      query = query.orderBy('totalSales', 'desc').limit(limit);
+      const productsSnapshot = await query.get();
 
       const topProducts = productsSnapshot.docs.map(doc => ({
         id: doc.id,
@@ -243,9 +251,9 @@ export class AnalyticsService {
       }));
 
       // Get products with low stock
-      const lowStockSnapshot = await this.productsCollection
-        .where('stock', '<', 10)  // Define low stock as less than 10 items
-        .get();
+      let lowStockQuery: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = this.productsCollection;
+      lowStockQuery = lowStockQuery.where('stock', '<', 10);  // Define low stock as less than 10 items
+      const lowStockSnapshot = await lowStockQuery.get();
 
       const lowStock = lowStockSnapshot.docs.map(doc => ({
         id: doc.id,
@@ -282,9 +290,9 @@ export class AnalyticsService {
       };
     }
   }
-  async getOrderStats(): Promise<OrderStats> {
+  async getOrderStats(startDate?: Date, endDate?: Date): Promise<OrderStats> {
     try {
-      const cacheKeyStr = cacheKey('analytics-orders', {});
+      const cacheKeyStr = cacheKey('analytics-orders', { startDate, endDate });
       const cached = await getCache<OrderStats>(cacheKeyStr);
       if (cached) {
         Logger.debug('Using cached order stats');
@@ -292,7 +300,22 @@ export class AnalyticsService {
       }
 
       Logger.debug('Calculating fresh order stats');
-      const ordersSnapshot = await this.ordersCollection.get();
+      
+      // Create date range for filtering
+      const queryEndDate = endDate || new Date();
+      const queryStartDate = startDate || new Date(queryEndDate);
+      queryStartDate.setDate(queryStartDate.getDate() - 30); // Default to last 30 days if no start date
+      
+      // Build query with date filters
+      let query: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = this.ordersCollection;
+      if (startDate) {
+        query = query.where('createdAt', '>=', queryStartDate);
+      }
+      if (endDate) {
+        query = query.where('createdAt', '<=', queryEndDate);
+      }
+      
+      const ordersSnapshot = await query.get();
       
       // Calculate status distribution
       const statusDistribution: { [key: string]: number } = {};
@@ -450,7 +473,8 @@ export class AnalyticsService {
       Logger.debug('Calculating fresh customer stats');
 
       // Get all users
-      const usersSnapshot = await this.usersCollection.get();
+      let usersQuery: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = this.usersCollection;
+      const usersSnapshot = await usersQuery.get();
       
       // Calculate new vs returning customers (based on orderCount)
       const newVsReturning = {
@@ -459,7 +483,8 @@ export class AnalyticsService {
       };
 
       // Get all orders for customer analysis
-      const ordersSnapshot = await this.ordersCollection.get();
+      let ordersQuery: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = this.ordersCollection;
+      const ordersSnapshot = await ordersQuery.get();
       const customerOrders: { [customerId: string]: { count: number; total: number } } = {};
       
       ordersSnapshot.docs.forEach(doc => {
@@ -519,7 +544,7 @@ export class AnalyticsService {
       return stats;
     } catch (error) {
       Logger.error('Error getting customer stats:', error);
-return {
+      return {
         newVsReturning: {
           new: 0,
           returning: 0
@@ -545,7 +570,7 @@ return {
       Logger.debug('Calculating fresh products by category');
 
       // Build Firestore query with optional date range filtering if dates provided
-      let query = this.productsCollection as any;
+      let query: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = this.productsCollection;
       if (startDate) {
         query = query.where('createdAt', '>=', startDate);
       }
@@ -556,7 +581,7 @@ return {
       const productsSnapshot = await query.get();
       const categoryDistribution: { [key: string]: number } = {};
 
-      productsSnapshot.docs.forEach((doc: any) => {
+      productsSnapshot.docs.forEach(doc => {
         const data = doc.data();
         const category = data.category || 'Uncategorized';
         categoryDistribution[category] = (categoryDistribution[category] || 0) + 1;
