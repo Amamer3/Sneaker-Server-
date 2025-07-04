@@ -27,8 +27,7 @@ const app = express();
 // Trust proxy - required when behind a reverse proxy like Render
 app.set('trust proxy', 1);
 
-// Initialize health checker (without Redis for now)
-// const healthChecker = new HealthCheck(redis, FirestoreService);
+// Health checking is now handled by the healthController
 
 // Middleware
 app.use(cors());
@@ -89,8 +88,7 @@ app.use((req, res, next) => {
 //   // Continue without Redis - it's optional for basic functionality
 // }
 
-// Health check endpoint
-// app.get('/api/health', healthChecker.middleware); // Temporarily disabled
+// Health check endpoint is now handled by the health routes
 
 // Basic root endpoint
 app.get('/', (req, res) => {
@@ -108,6 +106,7 @@ import userRoutes from './routes/users';
 import analyticsRoutes from './routes/analytics';
 import dashboardRoutes from './routes/dashboard';
 import deliveryRoutes from './routes/delivery';
+import healthRoutes from './routes/health';
 
 import monitoringRoutes from './routes/monitoring';
 import systemRoutes from './routes/system';
@@ -116,15 +115,16 @@ import systemRoutes from './routes/system';
 // Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
-app.use('/api/products', reviewRoutes); // Mount reviews under products
+app.use('/api/products', reviewRoutes); 
 app.use('/api/users/wishlist', wishlistRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/payment', paymentRoutes); // Mount payment routes
+app.use('/api/payment', paymentRoutes); 
 app.use('/api/delivery', deliveryRoutes);
+app.use('/api/health', healthRoutes); 
 
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/system', systemRoutes);
