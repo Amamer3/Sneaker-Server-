@@ -52,7 +52,42 @@ export const getRevenueStats = async (req: Request & { analyticsQuery?: Validate
 // Order Analytics
 export const getOrderStats = async (req: Request & { analyticsQuery?: ValidatedAnalyticsQuery }, res: Response) => {
   try {
-    const { startDate, endDate } = req.analyticsQuery || {};
+    let { startDate, endDate, timeframe = 'daily' } = req.analyticsQuery || {};
+    
+    // If analyticsQuery is not available, try to parse from query params
+    if (!req.analyticsQuery) {
+      try {
+        if (req.query.startDate) {
+          startDate = new Date(req.query.startDate as string);
+          if (isNaN(startDate.getTime())) {
+            return res.status(400).json({ 
+              error: 'Invalid startDate format',
+              message: 'Please provide a valid date in YYYY-MM-DD format'
+            });
+          }
+        }
+        
+        if (req.query.endDate) {
+          endDate = new Date(req.query.endDate as string);
+          if (isNaN(endDate.getTime())) {
+            return res.status(400).json({ 
+              error: 'Invalid endDate format',
+              message: 'Please provide a valid date in YYYY-MM-DD format'
+            });
+          }
+        }
+        
+        if (req.query.timeframe) {
+          timeframe = req.query.timeframe as TimeFrame;
+        }
+      } catch (dateError) {
+        return res.status(400).json({ 
+          error: 'Date parsing error',
+          message: 'Please provide valid dates in YYYY-MM-DD format'
+        });
+      }
+    }
+    
     const stats = await analyticsService.getOrderStats(startDate, endDate);
     res.json(stats);
   } catch (error) {
@@ -100,16 +135,44 @@ export const getLowStockProducts = async (req: Request, res: Response) => {
 
 export const getProductsByCategory = async (req: Request, res: Response) => {
   try {
-    const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
-    const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
-
+    let startDate: Date | undefined = undefined;
+    let endDate: Date | undefined = undefined;
+    
+    // Parse and validate date parameters
+    try {
+      if (req.query.startDate) {
+        startDate = new Date(req.query.startDate as string);
+        if (isNaN(startDate.getTime())) {
+          return res.status(400).json({ 
+            error: 'Invalid startDate format',
+            message: 'Please provide a valid date in YYYY-MM-DD format'
+          });
+        }
+      }
+      
+      if (req.query.endDate) {
+        endDate = new Date(req.query.endDate as string);
+        if (isNaN(endDate.getTime())) {
+          return res.status(400).json({ 
+            error: 'Invalid endDate format',
+            message: 'Please provide a valid date in YYYY-MM-DD format'
+          });
+        }
+      }
+    } catch (dateError) {
+      return res.status(400).json({ 
+        error: 'Date parsing error',
+        message: 'Please provide valid dates in YYYY-MM-DD format'
+      });
+    }
+    
     const stats = await analyticsService.getProductsByCategory(startDate, endDate);
     res.json(stats);
   } catch (error) {
     console.error('Error getting products by category:', error);
     res.status(500).json({ 
-      error: 'Failed to retrieve product category statistics',
-      message: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Failed to retrieve products by category',
+      message: error instanceof Error ? error.message : 'An unknown error occurred'
     });
   }
 };
@@ -117,11 +180,26 @@ export const getProductsByCategory = async (req: Request, res: Response) => {
 // Customer Analytics
 export const getCustomerStats = async (req: Request, res: Response) => {
   try {
-    const limit = Number(req.query.limit) || 10;
+    // Parse and validate limit parameter
+    let limit = 10;
+    if (req.query.limit) {
+      const parsedLimit = Number(req.query.limit);
+      if (isNaN(parsedLimit) || parsedLimit <= 0) {
+        return res.status(400).json({ 
+          error: 'Invalid limit parameter',
+          message: 'Limit must be a positive number'
+        });
+      }
+      limit = parsedLimit;
+    }
+    
     const stats = await analyticsService.getCustomerStats(limit);
     res.json(stats);
   } catch (error) {
     console.error('Error getting customer stats:', error);
-    res.status(500).json({ error: 'Failed to retrieve customer statistics' });
+    res.status(500).json({ 
+      error: 'Failed to retrieve customer statistics',
+      message: error instanceof Error ? error.message : 'An unknown error occurred'
+    });
   }
 };

@@ -91,7 +91,9 @@ export const validateAnalyticsQuery = (
         details: result.error.errors
       });
       return;
-    }    // Convert dates to strings and ensure all values are strings
+    }
+    
+    // Convert dates to strings and ensure all values are strings
     const queryParams: Record<string, string> = {};
     
     Object.entries(result.data).forEach(([key, value]) => {

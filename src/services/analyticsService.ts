@@ -463,6 +463,11 @@ export class AnalyticsService {
 
   async getCustomerStats(limit: number = 10): Promise<CustomerStats> {
     try {
+      // Validate limit parameter
+      if (isNaN(limit) || limit <= 0) {
+        throw new Error('Limit must be a positive number');
+      }
+      
       const cacheKeyStr = cacheKey('analytics-customers', { limit });
       const cached = await getCache<CustomerStats>(cacheKeyStr);
       if (cached) {
@@ -490,11 +495,21 @@ export class AnalyticsService {
       ordersSnapshot.docs.forEach(doc => {
         const data = doc.data();
         const customerId = data.userId;
-        if (!customerOrders[customerId]) {
-          customerOrders[customerId] = { count: 0, total: 0 };
+        if (customerId) {
+          if (!customerOrders[customerId]) {
+            customerOrders[customerId] = { count: 0, total: 0 };
+          }
+          customerOrders[customerId].count++;
+          
+          // Ensure totalAmount is a number
+          const totalAmount = typeof data.totalAmount === 'number' ? 
+            data.totalAmount : 
+            parseFloat(data.totalAmount || '0');
+            
+          if (!isNaN(totalAmount)) {
+            customerOrders[customerId].total += totalAmount;
+          }
         }
-        customerOrders[customerId].count++;
-        customerOrders[customerId].total += data.totalAmount || 0;
       });
 
       // Process customer data
@@ -503,7 +518,6 @@ export class AnalyticsService {
         name: string;
         totalSpent: number;
         orderCount: number;
-        createdAt: Date;
       }> = [];
 
       usersSnapshot.docs.forEach(doc => {
@@ -518,10 +532,9 @@ export class AnalyticsService {
 
         customerData.push({
           id: doc.id,
-          name: data.name,
+          name: data.name || 'Unknown',
           totalSpent: orders.total,
-          orderCount: orders.count,
-          createdAt: data.createdAt.toDate()
+          orderCount: orders.count
         });
       });
 
@@ -544,23 +557,17 @@ export class AnalyticsService {
       return stats;
     } catch (error) {
       Logger.error('Error getting customer stats:', error);
-      return {
-        newVsReturning: {
-          new: 0,
-          returning: 0
-        },
-        growth: {
-          rate: 0,
-          trend: []
-        },
-        topCustomers: []
-      };
+      // Throw the error so it can be properly handled by the controller
+      throw error;
     }
   }
 
   async getProductsByCategory(startDate?: Date, endDate?: Date): Promise<{ [category: string]: number }> {
     try {
-      const cacheKeyStr = cacheKey('analytics-products-category', { startDate, endDate });
+      const cacheKeyStr = cacheKey('analytics-products-category', { 
+        startDate: startDate ? startDate.toISOString() : null, 
+        endDate: endDate ? endDate.toISOString() : null 
+      });
       const cached = await getCache<{ [category: string]: number }>(cacheKeyStr);
       if (cached) {
         Logger.debug('Using cached products by category');
@@ -571,10 +578,19 @@ export class AnalyticsService {
 
       // Build Firestore query with optional date range filtering if dates provided
       let query: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = this.productsCollection;
+      
+      // Only apply date filters if the createdAt field exists in the documents
       if (startDate) {
+        // First check if the document has a createdAt field
+        query = query.where('createdAt', '!=', null);
         query = query.where('createdAt', '>=', startDate);
       }
+      
       if (endDate) {
+        // If we haven't already added the createdAt != null check
+        if (!startDate) {
+          query = query.where('createdAt', '!=', null);
+        }
         query = query.where('createdAt', '<=', endDate);
       }
 
@@ -591,7 +607,8 @@ export class AnalyticsService {
       return categoryDistribution;
     } catch (error) {
       Logger.error('Error getting products by category:', error);
-      return {};
+      // Throw the error so it can be properly handled by the controller
+      throw error;
     }
   }
 }
