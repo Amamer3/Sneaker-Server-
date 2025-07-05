@@ -162,3 +162,20 @@ export const validateAdminPassword = async (req: AuthRequest, res: Response, nex
     next(err);
   }
 };
+
+// Refresh token
+export const refreshToken = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { refreshToken } = req.body;
+    
+    if (!refreshToken) {
+      res.status(400).json({ message: 'Refresh token is required' });
+      return;
+    }
+
+    const result = await authService.refreshToken(refreshToken);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};

@@ -60,4 +60,9 @@ router.post('/admin/validate-password',
   }
 );
 
+// Refresh token route
+router.post('/refresh-token', (req: Request, res: Response, next: NextFunction) => {
+  authController.refreshToken(req, res, next);
+});
+
 export default router;

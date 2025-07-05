@@ -435,3 +435,32 @@ export const addProductReview = async (req: AuthRequest, res: Response, next: Ne
     next(error);
   }
 };
+
+export const bulkStockCheck = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { items } = req.body;
+
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ message: 'Items must be an array' });
+    }
+
+    // Validate items structure
+    for (const item of items) {
+      if (!item.productId || typeof item.quantity !== 'number' || item.quantity <= 0) {
+        return res.status(400).json({ 
+          message: 'Each item must have productId and positive quantity' 
+        });
+      }
+    }
+
+    // Use cartService for bulk stock check since it has the implementation
+    const { CartService } = await import('../services/cartService');
+    const cartService = new CartService();
+    
+    const result = await cartService.bulkStockCheck(items);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in bulk stock check:', error);
+    next(error);
+  }
+};

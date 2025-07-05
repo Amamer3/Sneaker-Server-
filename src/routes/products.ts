@@ -19,6 +19,9 @@ router.get('/:id', wrapHandler(productController.getProductById));
 router.get('/:id/reviews', wrapHandler(productController.getProductReviews));
 router.post('/:id/reviews', authenticateJWT, wrapHandler(productController.addProductReview));
 
+// Bulk stock check
+router.post('/bulk-stock-check', wrapHandler(productController.bulkStockCheck));
+
 // Admin Routes
 router.post('/', 
   authenticateJWT, 

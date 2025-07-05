@@ -121,7 +121,7 @@ export async function register(data: {
     }
 
     const token = jwt.sign(
-      { id: firebaseUser.uid, role, email }, 
+      { id: firebaseUser.uid, role, email, name }, 
       process.env.JWT_SECRET!, 
       { expiresIn: '7d' }
     );
@@ -183,7 +183,7 @@ export async function login(email: string, password: string, deviceInfo?: {
 
     // Generate tokens
     const token = jwt.sign(
-      { id: userData.id, role: userData.role, email: userData.email },
+      { id: userData.id, role: userData.role, email: userData.email, name: userData.name },
       process.env.JWT_SECRET!,
       { expiresIn: '24h' }
     );
@@ -431,7 +431,7 @@ export async function refreshToken(refreshToken: string): Promise<{ token: strin
 
     // Generate new tokens
     const newToken = jwt.sign(
-      { id: userData.id, role: userData.role, email: userData.email },
+      { id: userData.id, role: userData.role, email: userData.email, name: userData.name },
       process.env.JWT_SECRET!,
       { expiresIn: '24h' }
     );

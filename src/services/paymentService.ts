@@ -4,7 +4,12 @@ import { COLLECTIONS } from '../constants/collections';
 import Logger from '../utils/logger';
 
 // Initialize Paystack
-const paystackClient = paystack(process.env.PAYSTACK_SECRET_KEY!);
+let paystackClient: any = null;
+if (process.env.PAYSTACK_SECRET_KEY) {
+  paystackClient = paystack(process.env.PAYSTACK_SECRET_KEY);
+} else {
+  Logger.warn('PAYSTACK_SECRET_KEY environment variable is not set - payment functionality will be disabled');
+}
 
 type PaymentStatus = 'pending' | 'paid' | 'failed';
 
@@ -93,16 +98,30 @@ export const paymentService = {
     try {
       Logger.debug('Verifying payment transaction', { reference });
 
+      if (!reference) {
+        throw new Error('Payment reference is required');
+      }
+
+      if (!paystackClient) {
+        throw new Error('Paystack client not initialized - check PAYSTACK_SECRET_KEY');
+      }
+
       const response = await paystackClient.transaction.verify(reference);
+      Logger.debug('Paystack verification response:', { status: response.status, message: response.message });
 
       if (!response.status) {
         throw new Error(response.message || 'Payment verification failed');
+      }
+
+      if (!response.data) {
+        throw new Error('No transaction data returned from Paystack');
       }
 
       const { metadata = {}, amount, status } = response.data;
       const orderId = metadata.orderId as string;
 
       if (!orderId) {
+        Logger.warn('Order ID not found in payment metadata', { metadata, reference });
         throw new Error('Order ID not found in payment metadata');
       }
 
@@ -131,7 +150,11 @@ export const paymentService = {
         metadata: metadata
       };
     } catch (error) {
-      Logger.error('Error verifying payment:', error);
+      Logger.error('Error verifying payment:', {
+        error: error instanceof Error ? error.message : error,
+        reference,
+        stack: error instanceof Error ? error.stack : undefined
+      });
       throw error;
     }
   },  async handleWebhook(body: Record<string, any>, signature?: string): Promise<void> {

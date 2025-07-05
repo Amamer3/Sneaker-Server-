@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import * as orderService from '../services/orderService';
+import * as authService from '../services/authService';
 import { AuthRequest } from '../middleware/auth';
 import { CustomError } from '../utils/helpers';
 import { CreateOrderInput, OrderItem } from '../models/Order';
@@ -45,10 +46,26 @@ export const createOrder = async (req: AuthRequest, res: Response, next: NextFun
     };
 
     // Get user details from request
+    let userName = req.body.customerName || req.user?.name;
+    let userEmail = req.body.email || req.user?.email;
+    
+    // If name is not available in token, fetch from database
+    if (!userName || userName === 'N/A') {
+      try {
+        const userProfile = await authService.getProfile(userId);
+        if (userProfile) {
+          userName = userProfile.name;
+          userEmail = userEmail || userProfile.email;
+        }
+      } catch (error) {
+        console.error('Error fetching user profile for order:', error);
+      }
+    }
+    
     const userDetails = {
       id: userId,
-      name: req.body.customerName || req.user?.name || 'N/A',
-      email: req.body.email || req.user?.email || 'N/A',
+      name: userName || 'N/A',
+      email: userEmail || 'N/A',
       phone: shippingAddress.phone || 'N/A'
     };    // Create the shipping info
     const shippingInfo = {
