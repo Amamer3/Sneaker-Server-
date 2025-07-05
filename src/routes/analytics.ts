@@ -36,4 +36,7 @@ router.get('/products/low-stock', asyncHandler(analyticsController.getLowStockPr
 // Customer Analytics
 router.get('/customers', asyncHandler(analyticsController.getCustomerStats));
 
+// Recent Activity
+router.get('/recent-activity', asyncHandler(analyticsController.getRecentActivity));
+
 export default router;

@@ -106,7 +106,7 @@ export const paymentService = {
         throw new Error('Paystack client not initialized - check PAYSTACK_SECRET_KEY');
       }
 
-      const response = await paystackClient.transaction.verify(reference);
+      const response = await paystackClient.transaction.verify({ reference });
       Logger.debug('Paystack verification response:', { status: response.status, message: response.message });
 
       if (!response.status) {

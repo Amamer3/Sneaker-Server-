@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { AnalyticsService } from '../services/analyticsService';
 import { TimeFrame } from '../types/analytics';
 import { ValidatedAnalyticsQuery } from '../middleware/validation/analytics';
+import * as orderService from '../services/orderService';
 
 const analyticsService = new AnalyticsService();
 
@@ -45,7 +46,37 @@ export const getRevenueStats = async (req: Request & { analyticsQuery?: Validate
     res.json(stats);
   } catch (error) {
     console.error('Error getting revenue stats:', error);
-    res.status(500).json({ error: 'Failed to retrieve revenue statistics' });
+    res.status(500).json({ error: 'Failed to retrieve customer statistics' });
+  }
+};
+
+// Recent Activity Analytics
+export const getRecentActivity = async (req: Request, res: Response) => {
+  try {
+    const limit = Number(req.query.limit) || 8;
+    
+    // Get recent orders
+    const recentOrders = await orderService.getRecentOrders(limit);
+    
+    // Format the activity data
+    const activities = recentOrders.map(order => ({
+      id: order.id,
+      type: 'order',
+      title: `New Order #${order.orderNumber || order.id.slice(-6)}`,
+      description: `Order placed by ${order.user?.name || 'Customer'} - $${order.total?.toFixed(2) || '0.00'}`,
+      timestamp: order.createdAt,
+      status: order.status,
+      amount: order.total,
+      customer: {
+        name: order.user?.name || 'Unknown Customer',
+        email: order.user?.email || 'No email'
+      }
+    }));
+    
+    res.json(activities);
+  } catch (error) {
+    console.error('Error getting recent activity:', error);
+    res.status(500).json({ error: 'Failed to retrieve recent activity' });
   }
 };
 

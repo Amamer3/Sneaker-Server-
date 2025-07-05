@@ -35,4 +35,10 @@ router.patch('/:id/status', authenticateJWT, authorizeRoles('admin'), (req, res,
   orderController.updateOrderStatus(authReq, res, next);
 });
 
+// Export orders (admin only)
+router.get('/export', authenticateJWT, authorizeRoles('admin'), (req, res, next) => {
+  const authReq = req as AuthRequest;
+  orderController.exportOrders(authReq, res, next);
+});
+
 export default router;

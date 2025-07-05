@@ -151,6 +151,42 @@ export const getOrderById = async (req: AuthRequest, res: Response, next: NextFu
   }
 };
 
+export const exportOrders = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const startDate = req.query.startDate ? new Date(req.query.startDate as string) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Default to last 30 days
+    const endDate = req.query.endDate ? new Date(req.query.endDate as string) : new Date();
+    const format = req.query.format as string || 'json';
+
+    const orders = await orderService.getOrdersForExport(startDate, endDate);
+    
+    if (format === 'csv') {
+      // Convert orders to CSV format
+      const csvHeaders = 'Order ID,Order Number,Customer Name,Customer Email,Total,Status,Payment Status,Created At,Items\n';
+      const csvData = orders.map(order => {
+        const itemsStr = order.items.map(item => `${item.name} (${item.quantity})`).join('; ');
+        const createdAtStr = order.createdAt instanceof Date ? order.createdAt.toISOString() : (order.createdAt as any)?.toDate?.()?.toISOString() || order.createdAt;
+        return `${order.id},${order.orderNumber || ''},${order.user?.name || ''},${order.user?.email || ''},${order.total},${order.status},${order.paymentStatus},${createdAtStr},"${itemsStr}"`;
+      }).join('\n');
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename=orders-export.csv');
+      res.send(csvHeaders + csvData);
+    } else {
+      // Return JSON format
+      res.json({
+        orders,
+        total: orders.length,
+        dateRange: {
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString()
+        }
+      });
+    }
+  } catch (err) {
+     next(err);
+   }
+ };
+
 export const getUserOrders = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const userId = req.user?.id;

@@ -577,3 +577,19 @@ export async function processRefund(
     throw new Error('Failed to process refund');
   }
 }
+
+// Export orders for a date range
+export async function getOrdersForExport(startDate: Date, endDate: Date): Promise<Order[]> {
+  try {
+    const snapshot = await ordersCollection
+      .where('createdAt', '>=', admin.firestore.Timestamp.fromDate(startDate))
+      .where('createdAt', '<=', admin.firestore.Timestamp.fromDate(endDate))
+      .orderBy('createdAt', 'desc')
+      .get();
+
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+  } catch (error) {
+    console.error('Error getting orders for export:', error);
+    throw new Error('Failed to get orders for export');
+  }
+}
