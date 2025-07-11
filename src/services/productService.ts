@@ -330,8 +330,24 @@ export async function updateProduct(id: string, data: Partial<Product>, updatedB
 }
 
 export async function deleteProduct(id: string): Promise<boolean> {
-  await productsCollection.doc(id).delete();
-  return true;
+  try {
+    // Check if product exists before deletion
+    const doc = await productsCollection.doc(id).get();
+    if (!doc.exists) {
+      throw new Error('Product not found');
+    }
+
+    // Delete the product
+    await productsCollection.doc(id).delete();
+    
+    // Clear cache after deletion
+    await invalidateCache();
+    
+    return true;
+  } catch (error) {
+    console.error('Error deleting product:', error);
+    throw new Error('Failed to delete product');
+  }
 }
 
 export async function deleteImage(productId: string, imageId: string): Promise<Product | null> {
