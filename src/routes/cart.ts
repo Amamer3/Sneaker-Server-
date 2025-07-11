@@ -8,6 +8,23 @@ const router = Router();
 const wrapHandler = (handler: (req: AuthRequest, res: Response) => Promise<any>): RequestHandler => 
   (req, res, next) => handler(req as AuthRequest, res).catch(next);
 
+// Optional authentication middleware - doesn't fail if no token provided
+const optionalAuth = (req: AuthRequest, res: Response, next: any) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    try {
+      const jwt = require('jsonwebtoken');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!);
+      req.user = decoded as { id: string; role: string; name?: string; email?: string };
+    } catch (error) {
+      // Invalid token, but continue without user
+      console.warn('Invalid token provided:', error);
+    }
+  }
+  next();
+};
+
 /**
  * @swagger
  * /cart:
@@ -46,7 +63,7 @@ const wrapHandler = (handler: (req: AuthRequest, res: Response) => Promise<any>)
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/', wrapHandler(cartController.addToCart));
+router.post('/', optionalAuth, wrapHandler(cartController.addToCart));
 
 /**
  * @swagger
@@ -76,7 +93,7 @@ router.post('/', wrapHandler(cartController.addToCart));
  *       404:
  *         description: Item not found in cart
  */
-router.put('/:itemId', wrapHandler(cartController.updateCartItem));
+router.put('/:itemId', optionalAuth, wrapHandler(cartController.updateCartItem));
 
 /**
  * @swagger
@@ -96,7 +113,7 @@ router.put('/:itemId', wrapHandler(cartController.updateCartItem));
  *       404:
  *         description: Item not found in cart
  */
-router.delete('/:itemId', wrapHandler(cartController.removeFromCart));
+router.delete('/:itemId', optionalAuth, wrapHandler(cartController.removeFromCart));
 
 /**
  * @swagger
@@ -108,7 +125,7 @@ router.delete('/:itemId', wrapHandler(cartController.removeFromCart));
  *       200:
  *         description: Cart cleared successfully
  */
-router.delete('/', wrapHandler(cartController.clearCart));
+router.delete('/', optionalAuth, wrapHandler(cartController.clearCart));
 
 /**
  * @swagger
@@ -124,7 +141,7 @@ router.delete('/', wrapHandler(cartController.clearCart));
  *             schema:
  *               $ref: '#/components/schemas/Cart'
  */
-router.get('/', wrapHandler(cartController.getUserCart));
+router.get('/', optionalAuth, wrapHandler(cartController.getUserCart));
 
 // Protected cart routes (require authentication)
 router.post('/sync', authenticateJWT, wrapHandler(cartController.syncCart));

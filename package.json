@@ -7,7 +7,8 @@
     "dev": "nodemon -r dotenv/config --exec ts-node server.ts",
     "build": "tsc",
     "postinstall": "npm run build",
-    "test": "jest"
+    "test": "jest",
+    "deploy:firestore": "node deploy-firestore-rules.js"
   },
   "dependencies": {
     "@types/axios": "^0.9.36",
