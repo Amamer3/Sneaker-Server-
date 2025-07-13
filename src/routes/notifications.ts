@@ -7,6 +7,9 @@ const router = Router();
 // Apply authentication middleware to all notification routes
 router.use(authenticateJWT);
 
+// Create notification
+router.post('/', notificationController.createNotification);
+
 // Get user notifications
 router.get('/', notificationController.getUserNotifications);
 

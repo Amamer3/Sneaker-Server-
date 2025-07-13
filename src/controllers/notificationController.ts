@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { NotificationService } from '../services/notificationService';
 import { realTimeNotificationService } from '../services/realTimeNotificationService';
+import { CreateNotificationInput } from '../models/Notification';
 import Logger from '../utils/logger';
 
 const notificationService = new NotificationService();
@@ -207,5 +208,46 @@ export const getConnectionStatus = async (req: AuthRequest, res: Response): Prom
   } catch (error) {
     Logger.error('Error getting connection status:', error);
     res.status(500).json({ message: 'Failed to get connection status' });
+  }
+};
+
+// Create notification
+export const createNotification = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      res.status(401).json({ message: 'User not authenticated' });
+      return;
+    }
+
+    const notificationData: CreateNotificationInput = {
+      ...req.body,
+      userId: req.body.userId || userId // Allow admin to specify userId, default to current user
+    };
+
+    // Validate required fields
+    if (!notificationData.title || !notificationData.message) {
+      res.status(400).json({ 
+        success: false,
+        message: 'Title and message are required' 
+      });
+      return;
+    }
+
+    const notification = await notificationService.createNotification(notificationData);
+
+    res.status(201).json({
+      success: true,
+      data: notification,
+      message: 'Notification created successfully'
+    });
+  } catch (error) {
+    Logger.error('Error creating notification:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to create notification',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 };
