@@ -47,27 +47,52 @@
 
 2. **Product Reviews**:
    - **GET** `/api/products/:id/reviews` - Get product reviews
-   - **POST** `/api/products/:id/reviews` - Add product review
-   - **PUT** `/api/products/:id/reviews/:reviewId` - Update review
-   - **DELETE** `/api/products/:id/reviews/:reviewId` - Delete review
+   - **POST** `/api/products/:id/reviews` - Add product review (Auth required)
 
-3. **Product Wishlist**:
-   - **GET** `/api/wishlist` - Get user's wishlist
-   - **POST** `/api/wishlist/:productId` - Add to wishlist
-   - **DELETE** `/api/wishlist/:productId` - Remove from wishlist
+3. **Product Utilities**:
+   - **POST** `/api/products/bulk-stock-check` - Check stock for multiple products
+   - **GET** `/api/products/public/products/filters` - Get product filters for search
+   - **GET** `/api/products/featured` - Get featured products
 
-4. **Product Cart**:
+4. **Product Wishlist**:
+   - **GET** `/api/users/wishlist` - Get user's wishlist
+   - **POST** `/api/users/wishlist` - Add to wishlist (send productId in body)
+   - **DELETE** `/api/users/wishlist/:productId` - Remove from wishlist
+
+5. **Product Cart**:
    - **GET** `/api/cart` - Get user's cart
    - **POST** `/api/cart` - Add item to cart
-   - **PUT** `/api/cart/:itemId` - Update cart item
-   - **DELETE** `/api/cart/:itemId` - Remove from cart
-   - **POST** `/api/cart/checkout` - Process checkout
+   - **PUT** `/api/cart/:itemId` - Update cart item quantity
+   - **DELETE** `/api/cart/:itemId` - Remove item from cart
+   - **DELETE** `/api/cart` - Clear entire cart
+   - **POST** `/api/cart/sync` - Sync guest cart with user cart (Auth required)
+   - **POST** `/api/cart/checkout` - Process checkout (Auth required)
+   - **POST** `/api/cart/apply-coupon` - Apply coupon to cart (Auth required)
+   - **POST** `/api/cart/remove-coupon` - Remove coupon from cart (Auth required)
 
 ### Order Routes
 - **GET** `/api/orders`: Get all orders.
 - **GET** `/api/orders/:id`: Get an order by ID.
 - **POST** `/api/orders`: Create a new order.
 - **PUT** `/api/orders/:id/status`: Update the status of an order (Admin only).
+
+### Payment Routes
+
+#### Public Payment Routes
+- **POST** `/api/payment/webhook`: Handle payment webhook (Stripe/Paystack)
+- **GET** `/api/payment/verify/:reference`: Verify payment status
+- **POST** `/api/payment/verify/:reference`: Verify payment status (alternative method)
+
+#### Protected Payment Routes (Auth Required)
+- **POST** `/api/payment/initialize`: Initialize payment transaction
+
+### Delivery Routes
+
+#### Public Delivery Routes
+- **GET** `/api/delivery/delivery-options`: Get available delivery options
+
+#### Protected Delivery Routes (Auth Required)
+- **POST** `/api/delivery/validate-delivery-address`: Validate delivery address
 
 ### User Management Routes
 
@@ -92,6 +117,60 @@
 - **GET** `/api/users/:id`: Get user details
 - **PUT** `/api/users/:id`: Update user details
 - **DELETE** `/api/users/:id`: Delete user account
+
+### Notification Routes (All require JWT authentication)
+
+**Note**: The notification system currently supports **in-app notifications only**. Email and SMS functionality has been removed to focus on order updates, promotions, and general information delivery through the web application.
+
+#### User Notifications
+- **GET** `/api/notifications`: Get user notifications (with pagination: ?page=1&limit=20&unreadOnly=false)
+- **GET** `/api/notifications/unread-count`: Get unread notification count
+- **GET** `/api/notifications/stats`: Get notification statistics
+- **PUT** `/api/notifications/:id/read`: Mark notification as read
+- **PUT** `/api/notifications/mark-all-read`: Mark all notifications as read
+- **DELETE** `/api/notifications/:id`: Delete notification
+- **GET** `/api/notifications/stream`: Real-time notification stream (Server-Sent Events)
+- **GET** `/api/notifications/connection-status`: Get real-time connection status
+
+#### Notification Preferences
+- **GET** `/api/notifications/preferences`: Get user notification preferences
+- **PUT** `/api/notifications/preferences`: Update user notification preferences
+- **POST** `/api/notifications/preferences/reset`: Reset preferences to default
+
+### Admin Routes (Admin Only)
+
+All admin endpoints require admin authentication.
+
+#### Admin Dashboard
+- **GET** `/api/admin/dashboard/stats`: Get admin dashboard statistics
+- **GET** `/api/admin/dashboard/recent-orders`: Get recent orders for admin dashboard
+
+#### Admin User Management
+- **GET** `/api/admin/users`: Get all users (admin view)
+- **DELETE** `/api/admin/users/:userId`: Delete user account
+- **GET** `/api/admin/profile/activity`: Get admin profile activity
+
+#### Admin Coupon Management
+- **GET** `/api/admin/coupons`: Get all coupons
+- **GET** `/api/admin/coupons/stats`: Get coupon usage statistics
+- **POST** `/api/admin/coupons`: Create new coupon
+- **PUT** `/api/admin/coupons/:id`: Update coupon
+- **DELETE** `/api/admin/coupons/:id`: Delete coupon
+
+#### Admin Notification Management
+- **GET** `/api/admin/notifications/templates`: Get notification templates
+- **POST** `/api/admin/notifications/templates`: Create notification template
+- **PUT** `/api/admin/notifications/templates/:id`: Update notification template
+- **DELETE** `/api/admin/notifications/templates/:id`: Delete notification template
+- **POST** `/api/admin/notifications/bulk-send`: Send bulk notifications
+
+#### Admin Notification Testing
+- **POST** `/api/admin/test-notifications/create`: Test in-app notification creation
+- **POST** `/api/admin/test-notifications/real-time`: Test real-time notification
+- **POST** `/api/admin/test-notifications/broadcast`: Test broadcast notification
+- **GET** `/api/admin/test-notifications/real-time-stats`: Get real-time service statistics
+- **POST** `/api/admin/test-notifications/preferences`: Test in-app notification preferences
+- **POST** `/api/admin/test-notifications/delivery`: Test in-app notification delivery
 
 ### Analytics Routes (Admin Only)
 
@@ -185,6 +264,65 @@ All analytics endpoints are protected with admin authentication and rate limitin
 - **POST** `/api/alerts/thresholds`: Update alert thresholds
   - Body: Partial threshold settings to update
   - Returns: Updated threshold settings
+  - Admin authentication required
+
+### Dashboard Routes (Admin Only)
+
+All dashboard endpoints require admin authentication and include rate limiting and caching.
+
+- **GET** `/api/dashboard/stats`: Get dashboard statistics
+  - Returns: Overview statistics for admin dashboard
+  - Cache TTL: 5 minutes with 1 minute stale-while-revalidate
+  - Admin authentication required
+
+- **GET** `/api/dashboard/recent-orders`: Get recent orders for dashboard
+  - Returns: List of recent orders with summary information
+  - Cache TTL: 5 minutes with 1 minute stale-while-revalidate
+  - Admin authentication required
+
+### Monitoring Routes (Admin Only)
+
+All monitoring endpoints require admin authentication and are rate-limited.
+
+- **GET** `/api/monitoring/metrics/historical`: Get historical system metrics
+  - Query params: startTime, endTime, interval
+  - Returns: Historical metrics data
+  - Admin authentication required
+
+- **GET** `/api/monitoring/alerts/thresholds`: Get monitoring alert thresholds
+  - Returns: Current alert threshold settings
+  - Admin authentication required
+
+- **GET** `/api/monitoring/logs`: Get system logs
+  - Query params: limit, offset
+  - Returns: System log entries
+  - Admin authentication required
+
+### System Routes (Admin Only)
+
+All system endpoints require admin authentication.
+
+- **GET** `/api/system/metrics`: Get current system metrics
+  - Returns: Real-time system performance metrics
+  - Admin authentication required
+
+- **GET** `/api/system/metrics/historical`: Get historical system metrics
+  - Query params: startTime, endTime, interval
+  - Returns: Historical system performance data
+  - Admin authentication required
+
+- **GET** `/api/system/logs`: Get system logs
+  - Query params: limit, offset
+  - Returns: System log entries
+  - Admin authentication required
+
+- **GET** `/api/system/alerts/thresholds`: Get system alert thresholds
+  - Returns: Current alert threshold configuration
+  - Admin authentication required
+
+- **POST** `/api/system/alerts/thresholds`: Update system alert thresholds
+  - Body: Threshold settings to update
+  - Returns: Updated threshold configuration
   - Admin authentication required
 
 ## Setup Instructions

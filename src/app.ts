@@ -24,6 +24,11 @@ import { FirestoreService } from './utils/firestore';
 
 const app = express();
 
+// Simple test endpoint before any middleware
+app.get('/simple-test', (req, res) => {
+  res.json({ message: 'Simple test working', timestamp: new Date().toISOString() });
+});
+
 // Trust proxy - required when behind a reverse proxy like Render
 app.set('trust proxy', 1);
 
@@ -95,6 +100,16 @@ app.get('/', (req, res) => {
   res.json({ message: 'Sneakers Store API' });
 });
 
+// Test notification service endpoint (no auth required) - temporarily disabled
+// app.get('/test-notification-service', async (req, res) => {
+//   res.json({ message: 'Test endpoint temporarily disabled' });
+// });
+
+// Test simple endpoint (no auth required)
+app.get('/test-simple', (req, res) => {
+  res.json({ message: 'Test endpoint working', timestamp: new Date().toISOString() });
+});
+
 // Routes
 import authRoutes from './routes/auth';
 import productRoutes from './routes/products';
@@ -107,6 +122,8 @@ import analyticsRoutes from './routes/analytics';
 import dashboardRoutes from './routes/dashboard';
 import deliveryRoutes from './routes/delivery';
 import healthRoutes from './routes/health';
+import notificationRoutes from './routes/notifications';
+import notificationPreferencesRoutes from './routes/notificationPreferences';
 
 import monitoringRoutes from './routes/monitoring';
 import systemRoutes from './routes/system';
@@ -125,6 +142,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/payment', paymentRoutes); 
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/health', healthRoutes); 
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/notifications/preferences', notificationPreferencesRoutes);
 
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/system', systemRoutes);

@@ -5,6 +5,7 @@ import * as userController from '../controllers/userController';
 import * as couponController from '../controllers/couponController';
 
 import adminNotificationRoutes from './admin/notifications';
+import testNotificationRoutes from './admin/testNotifications';
 
 const router = Router();
 
@@ -63,5 +64,6 @@ router.delete('/coupons/:id', (req: Request, res: Response, next: NextFunction) 
 
 // Mount admin notification routes
 router.use('/notifications', adminNotificationRoutes);
+router.use('/test-notifications', testNotificationRoutes);
 
 export default router;

@@ -253,12 +253,12 @@ export async function requestPasswordReset(email: string): Promise<{ message: st
       updatedAt: admin.firestore.Timestamp.now().toDate()
     });
 
-    // Send password reset email
+    // Send password reset notification
     try {
       const notificationService = new NotificationService();
-      await notificationService.sendPasswordResetEmail(userData, resetToken);
+      await notificationService.sendPasswordResetNotification(userData, resetToken);
     } catch (error) {
-      console.error('Failed to send password reset email:', error);
+      console.error('Failed to send password reset notification:', error);
     }
 
     return { message: 'If the email exists, a password reset link has been sent.' };
@@ -346,12 +346,12 @@ export async function sendEmailVerification(userId: string): Promise<{ message: 
       updatedAt: admin.firestore.Timestamp.now().toDate()
     });
 
-    // Send verification email
+    // Send verification notification
     try {
       const notificationService = new NotificationService();
-      await notificationService.sendEmailVerification(userData, verificationToken);
+      await notificationService.sendEmailVerificationNotification(userData, verificationToken);
     } catch (error) {
-      console.error('Failed to send verification email:', error);
+      console.error('Failed to send verification notification:', error);
     }
 
     return { message: 'Verification email sent successfully' };

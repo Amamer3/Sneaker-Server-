@@ -9,6 +9,7 @@ import { Order } from '../models/Order';
 import { FirestoreService } from '../utils/firestore';
 import { admin } from '../config/firebase';
 import { COLLECTIONS } from '../constants/collections';
+import { realTimeNotificationService } from './realTimeNotificationService';
 
 const notificationsCollection = FirestoreService.collection(COLLECTIONS.NOTIFICATIONS);
 const preferencesCollection = FirestoreService.collection(COLLECTIONS.NOTIFICATION_PREFERENCES);
@@ -57,6 +58,15 @@ export class NotificationService {
         await this.sendNotification(createdNotification);
       }
 
+      // Send real-time notification for in-app notifications
+      if (notification.channel === 'in_app') {
+        realTimeNotificationService.sendNotificationToUser(notification.userId, createdNotification);
+        
+        // Update unread count
+        const unreadCount = await this.getUnreadCount(notification.userId);
+        realTimeNotificationService.sendUnreadCountUpdate(notification.userId, unreadCount);
+      }
+
       return createdNotification;
     } catch (error) {
       console.error('Error creating notification:', error);
@@ -64,144 +74,46 @@ export class NotificationService {
     }
   }
 
-  // Send notification
+  // Send notification (in-app only)
   async sendNotification(notification: Notification): Promise<void> {
     try {
-      // Check user preferences
+      // Check user preferences for in-app notifications
       const preferences = await this.getUserPreferences(notification.userId);
       if (!this.shouldSendNotification(notification, preferences)) {
         await this.updateNotificationStatus(notification.id, 'delivered', 'Blocked by user preferences');
         return;
       }
 
-      // Get user data
-      const userDoc = await usersCollection.doc(notification.userId).get();
-      if (!userDoc.exists) {
-        throw new Error('User not found');
-      }
-      const user = userDoc.data() as User;
-
-      let success = false;
-      let errorMessage = '';
-
-      try {
-        switch (notification.channel) {
-          case 'email':
-            await this.sendEmail(notification, user);
-            break;
-          case 'sms':
-            await this.sendSMS(notification, user);
-            break;
-          case 'push':
-            await this.sendPush(notification, user);
-            break;
-          case 'in_app':
-            // In-app notifications are stored in database only
-            break;
-        }
-        success = true;
-      } catch (error: any) {
-        errorMessage = error.message;
-        console.error(`Error sending ${notification.channel} notification:`, error);
-      }
-
-      // Update notification status
-      if (success) {
-        await this.updateNotificationStatus(notification.id, 'sent');
-      } else {
-        await this.updateNotificationStatus(notification.id, 'failed', errorMessage);
-        
-        // Retry if under max retries
-        if (notification.retryCount < notification.maxRetries) {
-          await this.scheduleRetry(notification);
-        }
-      }
+      // For in-app notifications, we just mark as sent since they're stored in database
+      // and delivered via real-time service
+      await this.updateNotificationStatus(notification.id, 'sent');
+      
+      console.log(`In-app notification sent to user ${notification.userId}: ${notification.title}`);
     } catch (error) {
       console.error('Error sending notification:', error);
       await this.updateNotificationStatus(notification.id, 'failed', 'Internal error');
     }
   }
 
-  // Send email notification
-  private async sendEmail(notification: Notification, user: User): Promise<void> {
-    // This would integrate with your email service (SendGrid, AWS SES, etc.)
-    // For now, we'll just log the email data
-    const emailData: EmailData = {
-      to: user.email,
-      subject: notification.title,
-      html: this.generateEmailHTML(notification, user),
-      text: notification.message
-    };
+  // Note: Email and SMS functionality removed for now we'll add them soon - using in-app notifications only
+  // This keeps the system simple and focused on web-based notifications
 
-    console.log('Sending email:', emailData);
-    // await emailService.send(emailData);
-  }
-
-  // Send SMS notification
-  private async sendSMS(notification: Notification, user: User): Promise<void> {
-    if (!user.profile?.phone) {
-      throw new Error('User phone number not available');
-    }
-
-    const smsData: SMSData = {
-      to: user.profile.phone,
-      message: `${notification.title}: ${notification.message}`
-    };
-
-    console.log('Sending SMS:', smsData);
-    // await smsService.send(smsData);
-  }
-
-  // Send push notification
-  private async sendPush(notification: Notification, user: User): Promise<void> {
-    const pushData: PushData = {
-      userId: user.id,
-      title: notification.title,
-      body: notification.message,
-      data: notification.data
-    };
-
-    console.log('Sending push notification:', pushData);
-    // await pushService.send(pushData);
-  }
-
-  // Generate email HTML
-  private generateEmailHTML(notification: Notification, user: User): string {
-    return `
-      <html>
-        <body>
-          <h2>${notification.title}</h2>
-          <p>Hi ${user.name},</p>
-          <p>${notification.message}</p>
-          ${notification.actions ? this.generateActionButtons(notification.actions) : ''}
-          <p>Best regards,<br>Your Sneakers Store Team</p>
-        </body>
-      </html>
-    `;
-  }
-
-  // Generate action buttons for email
-  private generateActionButtons(actions: any[]): string {
-    return actions.map(action => 
-      `<a href="${action.url}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin: 5px;">${action.label}</a>`
-    ).join('');
-  }
-
-  // Check if notification should be sent based on user preferences
+  // Check if notification should be sent based on user preferences (in-app only)
   private shouldSendNotification(notification: Notification, preferences: NotificationPreferences): boolean {
+    
     switch (notification.type) {
       case 'order_update':
-        return preferences.orderUpdates[notification.channel as keyof typeof preferences.orderUpdates] ?? true;
+      case 'order_confirmation':
+        return preferences.orderUpdates?.push ?? true; // Using push preference for in-app
       case 'promotion':
-        return preferences.promotions[notification.channel as keyof typeof preferences.promotions] ?? true;
+        return preferences.promotions?.push ?? true;
       case 'wishlist':
-        return preferences.wishlistUpdates[notification.channel as keyof typeof preferences.wishlistUpdates] ?? true;
-      case 'inventory':
-        return preferences.inventoryAlerts[notification.channel as keyof typeof preferences.inventoryAlerts] ?? true;
+        return preferences.wishlistUpdates?.push ?? true;
+      
       case 'review_request':
-        return preferences.reviewRequests[notification.channel as keyof typeof preferences.reviewRequests] ?? true;
+        return preferences.reviewRequests?.push ?? true;
       case 'abandoned_cart':
-        return preferences.abandonedCart[notification.channel as keyof typeof preferences.abandonedCart] ?? true;
+        return preferences.abandonedCart?.push ?? true;
       default:
         return true;
     }
@@ -219,15 +131,15 @@ export class NotificationService {
         } as NotificationPreferences;
       }
 
-      // Return default preferences
+      // Return default preferences (in-app notifications only)
       const defaultPreferences: NotificationPreferences = {
         userId,
-        orderUpdates: { email: true, sms: true, push: true },
-        promotions: { email: true, sms: false, push: true },
-        wishlistUpdates: { email: true, push: true },
-        inventoryAlerts: { email: true, push: true },
-        reviewRequests: { email: true, push: true },
-        abandonedCart: { email: true, push: true },
+        orderUpdates: { email: false, sms: false, push: true }, // push = in-app
+        promotions: { email: false, sms: false, push: true },
+        wishlistUpdates: { email: false, push: true },
+        inventoryAlerts: { email: false, push: true },
+        reviewRequests: { email: false, push: true },
+        abandonedCart: { email: false, push: true },
         updatedAt: new Date()
       };
 
@@ -298,7 +210,7 @@ export class NotificationService {
       title: `Order Confirmed - ${order.orderNumber}`,
       message: `Thank you for your order! Your order ${order.orderNumber} has been confirmed and is being processed.`,
       data: { orderId: order.id, orderNumber: order.orderNumber, totalAmount: order.totalAmount },
-      channel: 'email',
+      channel: 'in_app',
       priority: 'high'
     };
 
@@ -313,7 +225,7 @@ export class NotificationService {
       title: `Order Cancelled - ${order.orderNumber}`,
       message: `Your order ${order.orderNumber} has been cancelled.${reason ? ` Reason: ${reason}` : ''}`,
       data: { orderId: order.id, orderNumber: order.orderNumber, status: 'cancelled', reason },
-      channel: 'email',
+      channel: 'in_app',
       priority: 'high'
     };
 
@@ -328,7 +240,7 @@ export class NotificationService {
       title: `Order ${order.orderNumber} ${status}`,
       message: `Your order has been ${status.toLowerCase()}. ${this.getOrderStatusMessage(status)}`,
       data: { orderId: order.id, orderNumber: order.orderNumber, status },
-      channel: 'email',
+      channel: 'in_app',
       priority: 'high'
     };
 
@@ -343,7 +255,7 @@ export class NotificationService {
       title: `Order Status Update - ${order.orderNumber}`,
       message: `Your order ${order.orderNumber} status has been updated to ${order.status}. ${this.getOrderStatusMessage(order.status)}`,
       data: { orderId: order.id, orderNumber: order.orderNumber, status: order.status },
-      channel: 'email',
+      channel: 'in_app',
       priority: 'high'
     };
 
@@ -358,7 +270,7 @@ export class NotificationService {
       title: 'Don\'t forget your items!',
       message: `You have ${cartItems.length} item(s) waiting in your cart. Complete your purchase now!`,
       data: { cartItems },
-      channel: 'email',
+      channel: 'in_app',
       priority: 'normal',
       scheduledFor: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours later
     };
@@ -373,41 +285,134 @@ export class NotificationService {
       type: 'welcome',
       title: `Welcome to Sneakers Store, ${user.name}!`,
       message: 'Thank you for joining us. Explore our latest collection and enjoy exclusive member benefits.',
-      channel: 'email',
+      channel: 'in_app',
       priority: 'normal'
     };
 
     await this.createNotification(notification);
   }
 
-  // Send password reset email
-  async sendPasswordResetEmail(user: User, resetToken: string): Promise<void> {
+  // Send password reset notification
+  async sendPasswordResetNotification(user: User, resetToken: string): Promise<void> {
     const notification: CreateNotificationInput = {
       userId: user.id,
       type: 'password_reset',
       title: 'Password Reset Request',
-      message: `You have requested to reset your password. Use the following token to reset your password: ${resetToken}. This token will expire in 1 hour.`,
+      message: `You have requested to reset your password. Check your email for the reset link. This request will expire in 1 hour.`,
       data: { resetToken, expiresAt: new Date(Date.now() + 60 * 60 * 1000) },
-      channel: 'email',
+      channel: 'in_app',
       priority: 'high'
     };
 
     await this.createNotification(notification);
   }
 
-  // Send email verification
-  async sendEmailVerification(user: User, verificationToken: string): Promise<void> {
+  // Send email verification notification
+  async sendEmailVerificationNotification(user: User, verificationToken: string): Promise<void> {
     const notification: CreateNotificationInput = {
       userId: user.id,
       type: 'email_verification',
       title: 'Verify Your Email Address',
-      message: `Please verify your email address by using the following verification token: ${verificationToken}. This token will expire in 24 hours.`,
+      message: `Please check your email to verify your email address. The verification link will expire in 24 hours.`,
       data: { verificationToken, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) },
-      channel: 'email',
+      channel: 'in_app',
       priority: 'high'
     };
 
     await this.createNotification(notification);
+  }
+
+  // Send promotional notification
+  async sendPromotionalNotification(userId: string, title: string, message: string, data?: any): Promise<void> {
+    const notification: CreateNotificationInput = {
+      userId,
+      type: 'promotion',
+      title,
+      message,
+      data,
+      channel: 'in_app',
+      priority: 'normal'
+    };
+
+    await this.createNotification(notification);
+  }
+
+  // Send bulk promotional notifications to multiple users
+  async sendBulkPromotionalNotification(userIds: string[], title: string, message: string, data?: any): Promise<void> {
+    const notifications = userIds.map(userId => ({
+      userId,
+      type: 'promotion' as const,
+      title,
+      message,
+      data,
+      channel: 'in_app' as const,
+      priority: 'normal' as const
+    }));
+
+    // Create notifications in batches to avoid overwhelming the system
+    const batchSize = 50;
+    for (let i = 0; i < notifications.length; i += batchSize) {
+      const batch = notifications.slice(i, i + batchSize);
+      await Promise.all(batch.map(notification => this.createNotification(notification)));
+    }
+  }
+
+  
+
+  // Send wishlist update notification
+  async sendWishlistUpdate(userId: string, productName: string, updateType: 'price_drop' | 'back_in_stock' | 'sale', data?: any): Promise<void> {
+    let title = '';
+    let message = '';
+
+    switch (updateType) {
+      case 'price_drop':
+        title = `Price Drop Alert: ${productName}`;
+        message = `Great news! The price for ${productName} in your wishlist has dropped!`;
+        break;
+      case 'back_in_stock':
+        title = `Back in Stock: ${productName}`;
+        message = `${productName} from your wishlist is now back in stock!`;
+        break;
+      case 'sale':
+        title = `Sale Alert: ${productName}`;
+        message = `${productName} from your wishlist is now on sale!`;
+        break;
+    }
+
+    const notification: CreateNotificationInput = {
+      userId,
+      type: 'wishlist',
+      title,
+      message,
+      data: { productName, updateType, ...data },
+      channel: 'in_app',
+      priority: 'normal'
+    };
+
+    await this.createNotification(notification);
+  }
+
+  // Send general informational notification
+  async sendInformationalNotification(userId: string, title: string, message: string, data?: any): Promise<void> {
+    const notification: CreateNotificationInput = {
+      userId,
+      type: 'informational',
+      title,
+      message,
+      data,
+      channel: 'in_app',
+      priority: 'normal'
+    };
+
+    await this.createNotification(notification);
+  }
+
+  // Send system announcement to all users
+  async sendSystemAnnouncement(title: string, message: string, data?: any): Promise<void> {
+    // This would typically get all active user IDs from the database
+    // For now, we'll create a method that can be called with user IDs
+    console.log('System announcement created:', { title, message, data });
+    // Implementation would involve getting all user IDs and calling sendBulkPromotionalNotification
   }
 
   // Get order status message
@@ -593,6 +598,10 @@ export class NotificationService {
         readAt: new Date(),
         updatedAt: new Date()
       });
+      
+      // Send real-time unread count update
+      const unreadCount = await this.getUnreadCount(userId);
+      realTimeNotificationService.sendUnreadCountUpdate(userId, unreadCount);
     } catch (error) {
       console.error('Error marking notification as read:', error);
       throw error;
@@ -619,6 +628,10 @@ export class NotificationService {
       });
       
       await batch.commit();
+      
+      // Send real-time unread count update
+      const unreadCount = await this.getUnreadCount(userId);
+      realTimeNotificationService.sendUnreadCountUpdate(userId, unreadCount);
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
       throw error;
@@ -641,6 +654,10 @@ export class NotificationService {
       }
       
       await notificationRef.delete();
+      
+      // Send real-time unread count update
+      const unreadCount = await this.getUnreadCount(userId);
+      realTimeNotificationService.sendUnreadCountUpdate(userId, unreadCount);
     } catch (error) {
       console.error('Error deleting notification:', error);
       throw error;

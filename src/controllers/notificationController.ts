@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { NotificationService } from '../services/notificationService';
+import { realTimeNotificationService } from '../services/realTimeNotificationService';
 import Logger from '../utils/logger';
 
 const notificationService = new NotificationService();
@@ -174,26 +175,41 @@ export const streamNotifications = async (req: Request, res: Response): Promise<
       'Access-Control-Allow-Headers': 'Cache-Control'
     });
 
-    // Send initial connection message
-    res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Notification stream connected' })}\n\n`);
-
-    // Set up periodic heartbeat to keep connection alive
-    const heartbeat = setInterval(() => {
-      res.write(`data: ${JSON.stringify({ type: 'heartbeat', timestamp: new Date().toISOString() })}\n\n`);
-    }, 30000); // Send heartbeat every 30 seconds
-
-    // Handle client disconnect
-    req.on('close', () => {
-      Logger.info(`Notification stream closed for user: ${userId}`);
-      clearInterval(heartbeat);
-    });
-
-    // Keep the connection open
-    // In a real implementation, you would listen for new notifications
-    // and send them to the client using res.write()
+    // Add connection to real-time service
+    realTimeNotificationService.addConnection(userId, res);
+    
+    Logger.info(`Real-time notification stream established for user: ${userId}`);
     
   } catch (error) {
     Logger.error('Error setting up notification stream:', error);
     res.status(500).json({ message: 'Failed to setup notification stream' });
+  }
+};
+
+// Get real-time connection status
+export const getConnectionStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as AuthRequest;
+    const userId = authReq.user?.id;
+    
+    if (!userId) {
+      res.status(401).json({ message: 'User not authenticated' });
+      return;
+    }
+
+    const connectionCount = realTimeNotificationService.getUserConnectionCount(userId);
+    const totalConnections = realTimeNotificationService.getTotalConnections();
+
+    res.json({
+      success: true,
+      data: {
+        userConnections: connectionCount,
+        totalConnections,
+        isConnected: connectionCount > 0
+      }
+    });
+  } catch (error) {
+    Logger.error('Error getting connection status:', error);
+    res.status(500).json({ message: 'Failed to get connection status' });
   }
 };

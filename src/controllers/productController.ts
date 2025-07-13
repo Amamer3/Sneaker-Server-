@@ -197,29 +197,10 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
 
 export const deleteProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
-    
-    if (!id) {
-      return res.status(400).json({ message: 'Product ID is required' });
-    }
-    
-    const deleted = await productService.deleteProduct(id);
-    
-    if (deleted) {
-      res.json({ 
-        message: 'Product deleted successfully',
-        productId: id 
-      });
-    } else {
-      res.status(404).json({ message: 'Product not found' });
-    }
-  } catch (error) {
-    console.error('Error in deleteProduct controller:', error);
-    if (error instanceof Error && error.message === 'Product not found') {
-      res.status(404).json({ message: 'Product not found' });
-    } else {
-      next(error);
-    }
+    await productService.deleteProduct(req.params.id);
+    res.json({ message: 'Product deleted' });
+  } catch (err) {
+    next(err);
   }
 };
 

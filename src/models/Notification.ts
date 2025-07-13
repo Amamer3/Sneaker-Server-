@@ -8,7 +8,7 @@ export interface NotificationAction {
 export interface Notification {
   id: string;
   userId: string;
-  type: 'order_update' | 'order_confirmation' | 'promotion' | 'system' | 'wishlist' | 'inventory' | 'review_request' | 'welcome' | 'abandoned_cart' | 'password_reset' | 'email_verification';
+  type: 'order_update' | 'order_confirmation' | 'promotion' | 'system' | 'wishlist' | 'inventory' | 'review_request' | 'welcome' | 'abandoned_cart' | 'password_reset' | 'email_verification' | 'informational' | 'test';
   title: string;
   message: string;
   data?: Record<string, any>; // Additional data for the notification
@@ -32,7 +32,7 @@ export interface Notification {
 export interface NotificationTemplate {
   id: string;
   name: string;
-  type: 'order_update' | 'promotion' | 'system' | 'wishlist' | 'inventory' | 'review_request' | 'welcome' | 'abandoned_cart' | 'order_confirmation' | 'password_reset' | 'email_verification';
+  type: 'order_update' | 'promotion' | 'system' | 'wishlist' | 'inventory' | 'review_request' | 'welcome' | 'abandoned_cart' | 'order_confirmation' | 'password_reset' | 'email_verification' | 'informational' | 'test';
   subject: string;
   htmlTemplate: string;
   textTemplate: string;
@@ -77,7 +77,7 @@ export interface NotificationPreferences {
 
 export interface CreateNotificationInput {
   userId: string;
-  type: 'order_update' | 'promotion' | 'system' | 'wishlist' | 'inventory' | 'review_request' | 'welcome' | 'abandoned_cart' | 'order_confirmation' | 'password_reset' | 'email_verification';
+  type: 'order_update' | 'promotion' | 'system' | 'wishlist' | 'inventory' | 'review_request' | 'welcome' | 'abandoned_cart' | 'order_confirmation' | 'password_reset' | 'email_verification' | 'informational' | 'test';
   title: string;
   message: string;
   data?: Record<string, any>;
