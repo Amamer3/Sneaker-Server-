@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@types/axios": "^0.9.36",
+    "@types/socket.io": "^3.0.1",
     "@types/winston": "^2.4.4",
     "axios": "^1.9.0",
     "bcryptjs": "^3.0.2",
@@ -31,6 +32,7 @@
     "morgan": "^1.10.0",
     "multer": "^2.0.0",
     "paystack-api": "^2.0.6",
+    "socket.io": "^4.8.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "winston": "^3.17.0",

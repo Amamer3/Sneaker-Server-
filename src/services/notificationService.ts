@@ -10,6 +10,7 @@ import { FirestoreService } from '../utils/firestore';
 import { admin } from '../config/firebase';
 import { COLLECTIONS } from '../constants/collections';
 import { realTimeNotificationService } from './realTimeNotificationService';
+import { webSocketNotificationService } from './websocketNotificationService';
 
 const notificationsCollection = FirestoreService.collection(COLLECTIONS.NOTIFICATIONS);
 const preferencesCollection = FirestoreService.collection(COLLECTIONS.NOTIFICATION_PREFERENCES);
@@ -61,6 +62,9 @@ export class NotificationService {
       // Send real-time notification for in-app notifications
       if (notification.channel === 'in_app') {
         realTimeNotificationService.sendNotificationToUser(notification.userId, createdNotification);
+        
+        // Send WebSocket notification
+        await webSocketNotificationService.sendToUser(notification.userId, createdNotification);
         
         // Update unread count
         const unreadCount = await this.getUnreadCount(notification.userId);
