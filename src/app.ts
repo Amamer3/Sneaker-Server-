@@ -48,8 +48,16 @@ app.use((req, res, next) => {
   if (req.originalUrl === '/api/payment/webhook') {
     next();
   } else {
-    express.json()(req, res, next);
+    express.json({ limit: '50mb' })(req, res, next);
   }
+});
+
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Global request logging
+app.use((req, res, next) => {
+  console.log(`🌐 Global: ${req.method} ${req.url} - Original URL: ${req.originalUrl}`);
+  next();
 });
 
 // API Documentation
@@ -142,8 +150,11 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/payment', paymentRoutes); 
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/health', healthRoutes); 
-app.use('/api/notifications', notificationRoutes);
+console.log('🔧 Mounting notification preferences routes at /api/notifications/preferences');
 app.use('/api/notifications/preferences', notificationPreferencesRoutes);
+console.log('🔧 Mounting notification routes at /api/notifications');
+app.use('/api/notifications', notificationRoutes);
+console.log('🔧 All notification routes mounted successfully');
 
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/system', systemRoutes);
