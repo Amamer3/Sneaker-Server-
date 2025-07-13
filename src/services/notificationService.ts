@@ -460,6 +460,7 @@ export class NotificationService {
     page?: number;
     limit?: number;
     unreadOnly?: boolean;
+    featured?: boolean;
   } = {}): Promise<{
     notifications: Notification[];
     total: number;
@@ -467,12 +468,31 @@ export class NotificationService {
     totalPages: number;
   }> {
     try {
-      const { page = 1, limit = 20, unreadOnly = false } = options;
+      const { page = 1, limit = 20, unreadOnly = false, featured } = options;
       const offset = (page - 1) * limit;
+      
+      if (!userId) {
+        throw new Error('User ID is required');
+      }
 
-      let query = notificationsCollection
-        .where('userId', '==', userId)
-        .orderBy('createdAt', 'desc');
+      if (offset < 0) {
+        throw new Error('Invalid page number');
+      }
+
+      // Base query
+      let query = notificationsCollection.where('userId', '==', userId);
+
+      // Add filters
+      if (unreadOnly) {
+        query = query.where('isRead', '==', false);
+      }
+      
+      if (featured !== undefined) {
+        query = query.where('featured', '==', featured);
+      }
+
+      // Always order by createdAt desc
+      query = query.orderBy('createdAt', 'desc');
 
       if (unreadOnly) {
         query = query.where('isRead', '==', false);
@@ -488,13 +508,13 @@ export class NotificationService {
       const notifications = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate(),
-        updatedAt: doc.data().updatedAt?.toDate(),
-        readAt: doc.data().readAt?.toDate(),
-        scheduledFor: doc.data().scheduledFor?.toDate(),
-        sentAt: doc.data().sentAt?.toDate(),
-        deliveredAt: doc.data().deliveredAt?.toDate(),
-        expiresAt: doc.data().expiresAt?.toDate()
+        createdAt: doc.data().createdAt ? doc.data().createdAt.toDate() : null,
+        updatedAt: doc.data().updatedAt ? doc.data().updatedAt.toDate() : null,
+        readAt: doc.data().readAt ? doc.data().readAt.toDate() : null,
+        scheduledFor: doc.data().scheduledFor ? doc.data().scheduledFor.toDate() : null,
+        sentAt: doc.data().sentAt ? doc.data().sentAt.toDate() : null,
+        deliveredAt: doc.data().deliveredAt ? doc.data().deliveredAt.toDate() : null,
+        expiresAt: doc.data().expiresAt ? doc.data().expiresAt.toDate() : null
       })) as Notification[];
 
       return {
@@ -505,7 +525,20 @@ export class NotificationService {
       };
     } catch (error) {
       console.error('Error fetching user notifications:', error);
-      throw error;
+      
+      // Check for missing index error
+      if (error instanceof Error && error.message.includes('FAILED_PRECONDITION')) {
+        const indexMessage = error.message.includes('create_composite=') 
+          ? 'Missing required index. Please wait while the index is being created.'
+          : 'Missing required index. Please contact support.';
+          
+        throw new Error(indexMessage);
+      }
+      
+      if (error instanceof Error) {
+        throw new Error(`Failed to fetch notifications: ${error.message}`);
+      }
+      throw new Error('Failed to fetch notifications: Unknown error');
     }
   }
 
@@ -574,6 +607,16 @@ export class NotificationService {
       };
     } catch (error) {
       console.error('Error getting notification stats:', error);
+      
+      // Check for missing index error
+      if (error instanceof Error && error.message.includes('FAILED_PRECONDITION')) {
+        const indexMessage = error.message.includes('create_composite=') 
+          ? 'Missing required index. Please wait while the index is being created.'
+          : 'Missing required index. Please contact support.';
+          
+        throw new Error(indexMessage);
+      }
+      
       throw new Error('Failed to get notification stats');
     }
   }

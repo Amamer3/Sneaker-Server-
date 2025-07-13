@@ -1,51 +1,11 @@
 import { Router } from 'express';
 import * as notificationController from '../controllers/notificationController';
 import { authenticateJWT } from '../middleware/auth';
-import { NotificationService } from '../services/notificationService';
 
 const router = Router();
 
-// Test endpoint (no auth required) - moved to very top
-router.get('/test-no-auth', async (req, res) => {
-  try {
-    // Create an instance of NotificationService
-    const notificationService = new NotificationService();
-    
-    // Test the NotificationService directly
-    const testNotification = {
-      userId: 'test-user-123',
-      title: 'Test Notification',
-      message: 'This is a test notification',
-      type: 'test' as const,
-      channel: 'in_app' as const,
-      data: { test: true }
-    };
-    
-    const result = await notificationService.createNotification(testNotification);
-    
-    res.json({ 
-      message: 'Notification service test successful', 
-      timestamp: new Date().toISOString(),
-      notificationId: result.id,
-      testData: testNotification
-    });
-  } catch (error) {
-    console.error('Notification service test error:', error);
-    res.status(500).json({ 
-      message: 'Notification service test failed', 
-      error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
 // Apply authentication middleware to all notification routes
 router.use(authenticateJWT);
-
-// Test endpoint to verify routes are working
-router.get('/test', (req, res) => {
-  res.json({ message: 'Notification routes are working', timestamp: new Date().toISOString() });
-});
 
 // Get user notifications
 router.get('/', notificationController.getUserNotifications);

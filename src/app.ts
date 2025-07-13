@@ -43,7 +43,7 @@ app.use(morgan('combined', {
   }
 }));
 
-// Use JSON middleware for all routes except Stripe webhook
+// Use JSON middleware for all routes except webhook
 app.use((req, res, next) => {
   if (req.originalUrl === '/api/payment/webhook') {
     next();

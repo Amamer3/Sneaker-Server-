@@ -7,10 +7,9 @@ import Logger from '../utils/logger';
 const notificationService = new NotificationService();
 
 // Get user notifications
-export const getUserNotifications = async (req: Request, res: Response): Promise<void> => {
+export const getUserNotifications = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const authReq = req as AuthRequest;
-    const userId = authReq.user?.id;
+    const userId = req.user?.id;
     
     if (!userId) {
       res.status(401).json({ message: 'User not authenticated' });
@@ -34,15 +33,18 @@ export const getUserNotifications = async (req: Request, res: Response): Promise
     });
   } catch (error) {
     Logger.error('Error fetching user notifications:', error);
-    res.status(500).json({ message: 'Failed to fetch notifications' });
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to fetch notifications',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 };
 
 // Get unread notification count
-export const getUnreadCount = async (req: Request, res: Response): Promise<void> => {
+export const getUnreadCount = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const authReq = req as AuthRequest;
-    const userId = authReq.user?.id;
+    const userId = req.user?.id;
     
     if (!userId) {
       res.status(401).json({ message: 'User not authenticated' });
@@ -62,10 +64,9 @@ export const getUnreadCount = async (req: Request, res: Response): Promise<void>
 };
 
 // Get notification statistics
-export const getNotificationStats = async (req: Request, res: Response): Promise<void> => {
+export const getNotificationStats = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const authReq = req as AuthRequest;
-    const userId = authReq.user?.id;
+    const userId = req.user?.id;
     
     if (!userId) {
       res.status(401).json({ message: 'User not authenticated' });
@@ -85,10 +86,9 @@ export const getNotificationStats = async (req: Request, res: Response): Promise
 };
 
 // Mark notification as read
-export const markAsRead = async (req: Request, res: Response): Promise<void> => {
+export const markAsRead = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const authReq = req as AuthRequest;
-    const userId = authReq.user?.id;
+    const userId = req.user?.id;
     const { id } = req.params;
     
     if (!userId) {
@@ -109,10 +109,9 @@ export const markAsRead = async (req: Request, res: Response): Promise<void> => 
 };
 
 // Mark all notifications as read
-export const markAllAsRead = async (req: Request, res: Response): Promise<void> => {
+export const markAllAsRead = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const authReq = req as AuthRequest;
-    const userId = authReq.user?.id;
+    const userId = req.user?.id;
     
     if (!userId) {
       res.status(401).json({ message: 'User not authenticated' });
@@ -132,10 +131,9 @@ export const markAllAsRead = async (req: Request, res: Response): Promise<void> 
 };
 
 // Delete notification
-export const deleteNotification = async (req: Request, res: Response): Promise<void> => {
+export const deleteNotification = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const authReq = req as AuthRequest;
-    const userId = authReq.user?.id;
+    const userId = req.user?.id;
     const { id } = req.params;
     
     if (!userId) {
@@ -156,10 +154,9 @@ export const deleteNotification = async (req: Request, res: Response): Promise<v
 };
 
 // Stream notifications using Server-Sent Events
-export const streamNotifications = async (req: Request, res: Response): Promise<void> => {
+export const streamNotifications = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const authReq = req as AuthRequest;
-    const userId = authReq.user?.id;
+    const userId = req.user?.id;
     
     if (!userId) {
       res.status(401).json({ message: 'User not authenticated' });
@@ -187,10 +184,9 @@ export const streamNotifications = async (req: Request, res: Response): Promise<
 };
 
 // Get real-time connection status
-export const getConnectionStatus = async (req: Request, res: Response): Promise<void> => {
+export const getConnectionStatus = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const authReq = req as AuthRequest;
-    const userId = authReq.user?.id;
+    const userId = req.user?.id;
     
     if (!userId) {
       res.status(401).json({ message: 'User not authenticated' });
