@@ -9,6 +9,7 @@ cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
+  timeout: 60000, // 60 seconds timeout
 });
 
 export interface CloudinaryUploadResult {
@@ -60,36 +61,54 @@ export class CloudinaryService {
       quality?: number;
     } = {}
   ): Promise<CloudinaryUploadResult> {
-    try {
-      const uploadOptions = {
-        folder: options.folder || this.PRODUCT_FOLDER,
-        transformation: [
-          {
-            width: options.width || 800,
-            height: options.height || 800,
-            crop: 'limit'
-          },
-          {
-            quality: options.quality || 'auto',
-            fetch_format: 'auto'
-          }
-        ],
-        resource_type: 'auto' as const // Fix the type here
-      };
+    const maxRetries = 3;
+    let lastError: any;
 
-      const result = await cloudinary.uploader.upload(filePath, uploadOptions);
-      
-      return {
-        public_id: result.public_id,
-        secure_url: result.secure_url,
-        width: result.width,
-        height: result.height,
-        format: result.format
-      };
-    } catch (error) {
-      console.error('Cloudinary upload error:', error);
-      throw new Error('Failed to upload image to Cloudinary');
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const uploadOptions = {
+          folder: options.folder || this.PRODUCT_FOLDER,
+          transformation: [
+            {
+              width: options.width || 800,
+              height: options.height || 800,
+              crop: 'limit'
+            },
+            {
+              quality: options.quality || 'auto',
+              fetch_format: 'auto'
+            }
+          ],
+          resource_type: 'auto' as const,
+          timeout: 60000 // 60 seconds timeout per upload
+        };
+
+        const result = await cloudinary.uploader.upload(filePath, uploadOptions);
+        
+        return {
+          public_id: result.public_id,
+          secure_url: result.secure_url,
+          width: result.width,
+          height: result.height,
+          format: result.format
+        };
+      } catch (error: any) {
+        lastError = error;
+        console.error(`Cloudinary upload error (attempt ${attempt}/${maxRetries}):`, error);
+        
+        // If it's a timeout error and we have retries left, wait and retry
+        if (attempt < maxRetries && (error.http_code === 499 || error.message?.includes('timeout'))) {
+          console.log(`Retrying upload in ${attempt * 2} seconds...`);
+          await new Promise(resolve => setTimeout(resolve, attempt * 2000));
+          continue;
+        }
+        
+        // If it's the last attempt or a non-retryable error, throw
+        break;
+      }
     }
+    
+    throw new Error(`Failed to upload image to Cloudinary after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`);
   }
 
   static async deleteImage(publicId: string): Promise<boolean> {

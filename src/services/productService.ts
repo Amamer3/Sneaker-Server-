@@ -137,9 +137,6 @@ export async function createProduct(data: Partial<Product>, createdBy?: string):
   const productWithId = { ...product, id: docRef.id };
   await docRef.update({ id: docRef.id });
 
-  // Initialize inventory for the product
-  // Stock management removed - inventory system no longer available
-
   // Clear cache after creating new product
   await clearCache('products:*');
 
@@ -270,7 +267,6 @@ export async function getProductById(id: string): Promise<Product | null> {
 }
 
 // Alias for backward compatibility
-// This comment has been removed since getProduct is defined below
 
 export async function updateProduct(id: string, data: Partial<Product>, updatedBy?: string): Promise<Product | null> {
   const docRef = productsCollection.doc(id);
@@ -309,8 +305,6 @@ export async function updateProduct(id: string, data: Partial<Product>, updatedB
 
     baseData.searchTokens = Array.from(tokens);
   }
-
-  // Inventory management removed - stock updates no longer synced to inventory system
 
   // Filter out any undefined values to prevent Firestore errors
   const updateData = Object.entries(baseData).reduce((acc, [key, value]) => {

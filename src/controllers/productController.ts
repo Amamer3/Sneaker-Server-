@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 const handleImageUpload = async (file: Express.Multer.File) => {
   try {
     const result = await CloudinaryService.uploadImage(file.path, {
-      width: 800,
+           width: 800,
       height: 800,
       quality: 90
     });
@@ -171,12 +171,23 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
       images = [...images, ...newImages];
     }
 
+    // Parse sizes safely
+    let parsedSizes;
+    if (req.body.sizes) {
+      try {
+        parsedSizes = typeof req.body.sizes === 'string' ? JSON.parse(req.body.sizes) : req.body.sizes;
+      } catch (error) {
+        console.error('Error parsing sizes JSON:', error);
+        return res.status(400).json({ message: 'Invalid sizes format. Must be valid JSON.' });
+      }
+    }
+
     const updatedData = {
       ...req.body,
       images,
       price: req.body.price ? Number(req.body.price) : undefined,
       stock: req.body.stock ? Number(req.body.stock) : undefined,
-      sizes: req.body.sizes ? JSON.parse(req.body.sizes) : undefined,
+      sizes: parsedSizes,
       inStock: req.body.stock ? Number(req.body.stock) > 0 : undefined,
       featured: req.body.featured ? req.body.featured === 'true' : undefined
     };
@@ -191,6 +202,7 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
     res.json(product);
   } catch (error) {
     console.error('Error in updateProduct:', error);
+    
     next(error);
   }
 };
@@ -233,8 +245,6 @@ export const toggleFeatured = async (req: Request, res: Response, next: NextFunc
 export const uploadImages = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    console.log(`Uploading images for product ${id}`);
-    console.log('Files received:', req.files);
 
     // Get existing product
     const existingProduct = await productService.getProductById(id);
@@ -257,12 +267,8 @@ export const uploadImages = async (req: Request, res: Response, next: NextFuncti
         uploadFiles = Object.values(files).flat();
       }
 
-      console.log(`Processing ${uploadFiles.length} new images`);
-
       const uploadPromises = uploadFiles.map(async (file, index) => {
-        console.log(`Uploading image ${index + 1}:`, file.originalname);
         const result = await handleImageUpload(file);
-        console.log(`Image ${index + 1} uploaded successfully:`, result.secure_url);
         
         return {
           id: uuidv4(),
@@ -276,7 +282,6 @@ export const uploadImages = async (req: Request, res: Response, next: NextFuncti
       });
 
       newImages = await Promise.all(uploadPromises);
-      console.log('All new images processed:', newImages);
 
       // Combine existing and new images
       const updatedImages = [...existingProduct.images, ...newImages];
