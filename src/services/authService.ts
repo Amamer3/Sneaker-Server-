@@ -31,7 +31,8 @@ export async function register(data: {
   // Check if user already exists
   const userSnap = await usersCollection.where('email', '==', email).get();
   if (!userSnap.empty) {
-    throw new Error('Email already registered');
+    const { CustomError } = await import('../utils/helpers');
+    throw new CustomError('Email address is already in use', 409);
   }
 
   try {
@@ -130,9 +131,28 @@ export async function register(data: {
     const { password: _, ...userResponse } = user;
     
     return { token, user: userResponse };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Registration error:', error);
-    throw new Error('Failed to create user account');
+    
+    // Handle specific Firebase auth errors
+    if (error.code === 'auth/email-already-exists') {
+      const { CustomError } = await import('../utils/helpers');
+      throw new CustomError('Email address is already in use', 409);
+    }
+    
+    if (error.code === 'auth/invalid-email') {
+      const { CustomError } = await import('../utils/helpers');
+      throw new CustomError('Invalid email address', 400);
+    }
+    
+    if (error.code === 'auth/weak-password') {
+      const { CustomError } = await import('../utils/helpers');
+      throw new CustomError('Password is too weak', 400);
+    }
+    
+    // For other errors, throw a generic server error
+    const { CustomError } = await import('../utils/helpers');
+    throw new CustomError('Failed to create user account', 500);
   }
 }
 
@@ -142,34 +162,40 @@ export async function login(email: string, password: string, deviceInfo?: {
   deviceType?: string;
 }): Promise<{ token: string; user: User; refreshToken: string }> {
   if (!email || !password) {
-    throw new Error('Email and password are required');
+    const { CustomError } = await import('../utils/helpers');
+    throw new CustomError('Email and password are required', 400);
   }
 
   try {
     const userSnap = await usersCollection.where('email', '==', email).get();
     if (userSnap.empty) {
-      throw new Error('Invalid credentials');
+      const { CustomError } = await import('../utils/helpers');
+      throw new CustomError('Invalid credentials', 401);
     }
 
     const userData = userSnap.docs[0].data() as User;
     
     // Check account status
     if (userData.status === 'suspended') {
-      throw new Error('Account has been suspended. Please contact support.');
+      const { CustomError } = await import('../utils/helpers');
+      throw new CustomError('Account has been suspended. Please contact support.', 403);
     }
     
     if (userData.status === 'inactive') {
-      throw new Error('Account is inactive. Please contact support.');
+      const { CustomError } = await import('../utils/helpers');
+      throw new CustomError('Account is inactive. Please contact support.', 403);
     }
 
     if (!userData.password) {
-      throw new Error('Invalid credentials');
+      const { CustomError } = await import('../utils/helpers');
+      throw new CustomError('Invalid credentials', 401);
     }
     const isValid = await bcrypt.compare(password, userData.password);
     if (!isValid) {
       // Log failed login attempt
       await logFailedLoginAttempt(userData.id, deviceInfo);
-      throw new Error('Invalid credentials');
+      const { CustomError } = await import('../utils/helpers');
+      throw new CustomError('Invalid credentials', 401);
     }
 
     // Update login analytics
@@ -204,12 +230,14 @@ export async function login(email: string, password: string, deviceInfo?: {
     };
 
     return { token, user: userResponse, refreshToken };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Login error:', error);
-    if (error instanceof Error) {
+    if (error.statusCode) {
+      // Re-throw CustomError instances
       throw error;
     }
-    throw new Error('Login failed');
+    const { CustomError } = await import('../utils/helpers');
+    throw new CustomError('Login failed', 500);
   }
 }
 
