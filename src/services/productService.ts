@@ -331,7 +331,28 @@ export async function deleteProduct(id: string): Promise<boolean> {
       throw new Error('Product not found');
     }
 
-    // Delete the product
+    const product = doc.data() as Product;
+    
+    // Delete all images from Cloudinary first
+    if (product.images && product.images.length > 0) {
+      const { CloudinaryService } = await import('../config/cloudinary');
+      
+      const deletePromises = product.images
+        .filter(image => image.publicId) // Only delete images with publicId
+        .map(image => CloudinaryService.deleteImage(image.publicId!));
+      
+      // Wait for all image deletions to complete
+      const results = await Promise.allSettled(deletePromises);
+      
+      // Log any failed deletions but don't stop the product deletion
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error(`Failed to delete image ${product.images[index].publicId} from Cloudinary:`, result.reason);
+        }
+      });
+    }
+
+    // Delete the product from database
     await productsCollection.doc(id).delete();
     
     // Clear cache after deletion

@@ -132,6 +132,7 @@ import deliveryRoutes from './routes/delivery';
 import healthRoutes from './routes/health';
 import notificationRoutes from './routes/notifications';
 import notificationPreferencesRoutes from './routes/notificationPreferences';
+import categoriesRoutes from './routes/categories';
 
 import monitoringRoutes from './routes/monitoring';
 import systemRoutes from './routes/system';
@@ -149,7 +150,8 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/payment', paymentRoutes); 
 app.use('/api/delivery', deliveryRoutes);
-app.use('/api/health', healthRoutes); 
+app.use('/api/health', healthRoutes);
+app.use('/api/categories', categoriesRoutes); 
 console.log('🔧 Mounting notification preferences routes at /api/notifications/preferences');
 app.use('/api/notifications/preferences', notificationPreferencesRoutes);
 console.log('🔧 Mounting notification routes at /api/notifications');
