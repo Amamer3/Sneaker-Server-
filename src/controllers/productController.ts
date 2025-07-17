@@ -395,9 +395,9 @@ export const getProductFilters = async (req: Request, res: Response, next: NextF
 
 export const getFeaturedProducts = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { limit = 6 } = req.query;
+    const { limit } = req.query;
     const products = await productService.getAllProducts({
-      limit: Number(limit),
+      limit: limit ? Number(limit) : undefined,
       featured: true,
       inStock: true
     });
