@@ -36,8 +36,9 @@ router.get('/count', notificationController.getUnreadCount);
 // Get notification statistics
 router.get('/stats', notificationController.getNotificationStats);
 
-// Mark notification as read
+// Mark notification as read (support both PUT and PATCH)
 router.put('/:id/read', notificationController.markAsRead);
+router.patch('/:id/read', notificationController.markAsRead);
 
 // Mark all notifications as read
 router.put('/mark-all-read', notificationController.markAllAsRead);
