@@ -3,7 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
-import swaggerUi from 'swagger-ui-express';
+import { apiReference } from '@scalar/express-api-reference';
 import { swaggerSpec } from './config/swagger';
 
 // Load environment variables
@@ -62,9 +62,15 @@ app.use((req, res, next) => {
 
 // API Documentation
 if (process.env.NODE_ENV !== 'production') {
-  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-    explorer: true,
-    customSiteTitle: 'Sneakers Store API Documentation'
+  // Serve the OpenAPI spec as JSON
+  app.get('/openapi.json', (req, res) => {
+    res.json(swaggerSpec);
+  });
+  
+  // Serve Scalar API reference
+  app.use('/api-docs', apiReference({
+    url: '/openapi.json',
+    theme: 'purple'
   }));
 }
 
