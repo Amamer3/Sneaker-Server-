@@ -36,7 +36,9 @@ app.set('trust proxy', 1);
 
 // Middleware
 app.use(cors());
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false 
+}));
 app.use(morgan('combined', {
   stream: {
     write: (message) => Logger.http(message.trim())
