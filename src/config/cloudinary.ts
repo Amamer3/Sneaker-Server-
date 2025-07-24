@@ -135,6 +135,28 @@ export class CloudinaryService {
       return false;
     }
   }
+
+  // Validate if a Cloudinary URL is still accessible
+  static async validateImageUrl(url: string): Promise<boolean> {
+    try {
+      const response = await fetch(url, { method: 'HEAD' });
+      return response.ok;
+    } catch (error) {
+      console.error('URL validation error:', error);
+      return false;
+    }
+  }
+
+  // Extract public ID from Cloudinary URL
+  static extractPublicId(url: string): string | null {
+    try {
+      const match = url.match(/\/v\d+\/(.+?)\.(jpg|jpeg|png|gif|webp)/);
+      return match ? match[1] : null;
+    } catch (error) {
+      console.error('Error extracting public ID:', error);
+      return null;
+    }
+  }
 }
 
 export default cloudinary;

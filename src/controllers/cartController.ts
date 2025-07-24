@@ -209,52 +209,105 @@ export const addToCart = async (req: AuthRequest, res: Response) => {
 
 export const updateCartItem = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user?.id;
     const { itemId } = req.params;
-    const { quantity } = req.body;
+    const { quantity, size } = req.body;
 
-    if (typeof quantity !== 'number') {
-      return res.status(400).json({ message: 'Quantity must be a number' });
+    // Validate user authentication
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    // Validate itemId (productId)
+    if (!itemId || itemId === 'undefined') {
+      return res.status(400).json({ message: 'Valid product ID is required' });
+    }
+
+    if (typeof quantity !== 'number' || quantity < 0) {
+      return res.status(400).json({ message: 'Quantity must be a non-negative number' });
     }
 
     // itemId from params is actually the productId for the cart item
-    const cart = await cartService.updateCartItemQuantity(userId, itemId, quantity);
+    const cart = await cartService.updateCartItemQuantity(userId, itemId, quantity, size);
     if (!cart) {
       return res.status(404).json({ message: 'Cart item not found' });
     }
 
     const enrichedCart = await enrichCartWithProductDetails(cart);
-    res.json(enrichedCart);
+    res.json({
+      ...enrichedCart,
+      message: quantity === 0 ? 'Item removed from cart' : 'Cart item updated successfully'
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Error updating cart item', error });
+    console.error('Error updating cart item:', error);
+    res.status(500).json({ 
+      message: 'Error updating cart item', 
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 };
 
 export const removeFromCart = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user?.id;
     const { itemId } = req.params;
+    const { size } = req.body; // Size can be passed in request body for DELETE requests
+
+    // Validate user authentication
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    // Validate itemId (productId)
+    if (!itemId || itemId === 'undefined') {
+      return res.status(400).json({ message: 'Valid product ID is required' });
+    }
 
     // itemId from params is actually the productId for the cart item
-    const cart = await cartService.removeFromCart(userId, itemId);
+    const cart = await cartService.removeFromCart(userId, itemId, size);
     if (!cart) {
       return res.status(404).json({ message: 'Cart item not found' });
     }
 
     const enrichedCart = await enrichCartWithProductDetails(cart);
-    res.json(enrichedCart);
+    res.json({
+      ...enrichedCart,
+      message: 'Item removed from cart successfully'
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Error removing from cart', error });
+    console.error('Error removing from cart:', error);
+    res.status(500).json({ 
+      message: 'Error removing from cart', 
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 };
 
 export const clearCart = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user?.id;
+
+    // Validate user authentication
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
     await cartService.clearCart(userId);
-    res.json({ message: 'Cart cleared', items: [], total: 0 });
+    res.json({ 
+      message: 'Cart cleared successfully', 
+      items: [], 
+      total: 0,
+      id: '',
+      userId,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Error clearing cart', error });
+    console.error('Error clearing cart:', error);
+    res.status(500).json({ 
+      message: 'Error clearing cart', 
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 };
 

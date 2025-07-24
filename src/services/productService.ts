@@ -61,8 +61,9 @@ const transformProductData = (doc: FirebaseFirestore.DocumentData): Product => {
       id: img.id || `img-${index}`,
       url: img.url || img, // Handle both new and old image format
       order: img.order || index,
-      publicId: img.publicId
-    })) : [],
+      publicId: img.publicId,
+      alt: img.alt || data.name || 'Product image'
+    })).filter((img: any) => img.url) : [], // Filter out images without URLs
     createdAt: data.createdAt?.toDate() || new Date(),
     updatedAt: data.updatedAt?.toDate() || new Date()
   };

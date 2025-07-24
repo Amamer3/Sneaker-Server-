@@ -177,12 +177,17 @@ export class CartService {
       throw new Error('Failed to add item to cart');
     }
   }
-  async updateCartItemQuantity(userId: string, productId: string, quantity: number): Promise<Cart | null> {
+  async updateCartItemQuantity(userId: string, productId: string, quantity: number, size?: string): Promise<Cart | null> {
     try {
       const cart = await this.getCart(userId);
       if (!cart) return null;
 
-      const itemIndex = cart.items.findIndex(item => item.productId === productId);
+      // Find item by productId and size (if provided)
+      const itemIndex = cart.items.findIndex(item => 
+        item.productId === productId && 
+        (size === undefined || item.size === size)
+      );
+      
       if (itemIndex === -1) return null;
 
       const now = Timestamp.now();
@@ -205,7 +210,7 @@ export class CartService {
       };
 
       const firestoreUpdates = this.toFirestoreCart(updates);
-      await this.collection.doc(cart.id).update(firestoreUpdates);
+      await this.collection.doc(cart.id!).update(firestoreUpdates as any);
 
       return this.fromFirestoreCart({
         ...cart,
@@ -217,21 +222,16 @@ export class CartService {
       throw new Error('Failed to update cart item quantity');
     }
   }
-  async removeFromCart(userId: string, productId: string): Promise<Cart | null> {
-    return this.updateCartItemQuantity(userId, productId, 0);
+  async removeFromCart(userId: string, productId: string, size?: string): Promise<Cart | null> {
+    return this.updateCartItemQuantity(userId, productId, 0, size);
   }
 
   async clearCart(userId: string): Promise<void> {
     try {
       const cart = await this.getCart(userId);
       if (cart) {
-        const updates = {
-          items: [],
-          total: 0,
-          updatedAt: Timestamp.now()
-        };
-        const firestoreUpdates = this.toFirestoreCart(updates);
-        await this.collection.doc(cart.id).update(firestoreUpdates);
+        // Delete the cart document completely from the database
+        await this.collection.doc(cart.id).delete();
       }
     } catch (error) {
       console.error('Error clearing cart:', error);

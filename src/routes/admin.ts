@@ -3,6 +3,7 @@ import { authenticateJWT, authorizeRoles, AuthRequest } from '../middleware/auth
 import * as dashboardController from '../controllers/dashboardController';
 import * as userController from '../controllers/userController';
 import * as couponController from '../controllers/couponController';
+import { cleanupInvalidImages } from '../utils/cleanupInvalidImages';
 
 import adminNotificationRoutes from './admin/notifications';
 import testNotificationRoutes from './admin/testNotifications';
@@ -60,6 +61,26 @@ router.put('/coupons/:id', (req: Request, res: Response, next: NextFunction) => 
 router.delete('/coupons/:id', (req: Request, res: Response, next: NextFunction) => {
   const authReq = req as AuthRequest;
   couponController.deleteCoupon(authReq, res).catch(next);
+});
+
+// Image cleanup endpoint
+router.post('/cleanup-images', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    console.log('🧹 Starting image cleanup process...');
+    await cleanupInvalidImages();
+    
+    res.json({
+      success: true,
+      message: 'Image cleanup completed successfully'
+    });
+  } catch (error) {
+    console.error('Image cleanup failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Image cleanup failed',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 });
 
 // Mount admin notification routes

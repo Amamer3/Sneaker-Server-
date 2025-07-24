@@ -77,6 +77,7 @@ router.post('/', optionalAuth, wrapHandler(cartController.addToCart));
  *         required: true
  *         schema:
  *           type: string
+ *         description: Product ID of the cart item
  *     requestBody:
  *       required: true
  *       content:
@@ -87,13 +88,20 @@ router.post('/', optionalAuth, wrapHandler(cartController.addToCart));
  *               quantity:
  *                 type: number
  *                 minimum: 0
+ *               size:
+ *                 type: string
+ *                 description: Size of the product (optional)
  *     responses:
  *       200:
  *         description: Cart item updated successfully
+ *       400:
+ *         description: Invalid input or missing product ID
+ *       401:
+ *         description: Authentication required
  *       404:
  *         description: Item not found in cart
  */
-router.put('/:itemId', optionalAuth, wrapHandler(cartController.updateCartItem));
+router.put('/:itemId', authenticateJWT, wrapHandler(cartController.updateCartItem));
 
 /**
  * @swagger
@@ -107,13 +115,18 @@ router.put('/:itemId', optionalAuth, wrapHandler(cartController.updateCartItem))
  *         required: true
  *         schema:
  *           type: string
+ *         description: Product ID of the cart item
  *     responses:
  *       200:
  *         description: Item removed from cart
+ *       400:
+ *         description: Invalid product ID
+ *       401:
+ *         description: Authentication required
  *       404:
  *         description: Item not found in cart
  */
-router.delete('/:itemId', optionalAuth, wrapHandler(cartController.removeFromCart));
+router.delete('/:itemId', authenticateJWT, wrapHandler(cartController.removeFromCart));
 
 /**
  * @swagger
@@ -124,8 +137,10 @@ router.delete('/:itemId', optionalAuth, wrapHandler(cartController.removeFromCar
  *     responses:
  *       200:
  *         description: Cart cleared successfully
+ *       401:
+ *         description: Authentication required
  */
-router.delete('/', optionalAuth, wrapHandler(cartController.clearCart));
+router.delete('/', authenticateJWT, wrapHandler(cartController.clearCart));
 
 /**
  * @swagger
