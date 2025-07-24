@@ -195,6 +195,12 @@ export class CartService {
 
       if (quantity <= 0) {
         updatedItems.splice(itemIndex, 1);
+        
+        // If cart becomes empty after removing item, delete the cart document
+        if (updatedItems.length === 0) {
+          await this.collection.doc(cart.id!).delete();
+          return null;
+        }
       } else {
         updatedItems[itemIndex] = {
           ...updatedItems[itemIndex],
