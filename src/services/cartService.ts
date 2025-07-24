@@ -58,14 +58,23 @@ export class CartService {
   }
 
   private fromFirestoreCart(cart: any): Cart {
+    const convertTimestamp = (timestamp: any): Date => {
+      if (!timestamp) return new Date();
+      if (timestamp instanceof Date) return timestamp;
+      if (typeof timestamp.toDate === 'function') return timestamp.toDate();
+      if (typeof timestamp === 'string') return new Date(timestamp);
+      if (typeof timestamp === 'number') return new Date(timestamp);
+      return new Date();
+    };
+
     return {
       ...cart,
-      createdAt: cart.createdAt?.toDate() || new Date(),
-      updatedAt: cart.updatedAt?.toDate() || new Date(),
+      createdAt: convertTimestamp(cart.createdAt),
+      updatedAt: convertTimestamp(cart.updatedAt),
       items: (cart.items || []).map((item: any) => ({
         ...item,
-        createdAt: item.createdAt?.toDate() || new Date(),
-        updatedAt: item.updatedAt?.toDate() || new Date()
+        createdAt: convertTimestamp(item.createdAt),
+        updatedAt: convertTimestamp(item.updatedAt)
       }))
     };
   }
