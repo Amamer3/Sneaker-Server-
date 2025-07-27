@@ -40,8 +40,9 @@ router.get('/stats', notificationController.getNotificationStats);
 router.put('/:id/read', notificationController.markAsRead);
 router.patch('/:id/read', notificationController.markAsRead);
 
-// Mark all notifications as read
+// Mark all notifications as read (support both PUT and PATCH)
 router.put('/mark-all-read', notificationController.markAllAsRead);
+router.patch('/mark-all-read', notificationController.markAllAsRead);
 
 // Delete notification
 router.delete('/:id', notificationController.deleteNotification);
