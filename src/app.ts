@@ -59,7 +59,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-content-type-options', 'x-csrf-token', 'x-xss-protection']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-content-type-options', 'x-csrf-token', 'x-xss-protection', 'x-frame-options']
 }));
 app.use(helmet({
   contentSecurityPolicy: false 
