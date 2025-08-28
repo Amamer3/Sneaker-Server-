@@ -72,7 +72,7 @@ io.on('connection', (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`WebSocket server available at ws://localhost:${PORT}/ws/notifications`);
-});
+}); // CORS configuration updated
 
 // Extend Socket interface to include userId
 declare module 'socket.io' {

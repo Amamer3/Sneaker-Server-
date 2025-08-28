@@ -32,7 +32,6 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^2.0.0",
-    "paystack-api": "^2.0.6",
     "socket.io": "^4.8.1",
     "swagger-jsdoc": "^6.2.8",
     "winston": "^3.17.0",
