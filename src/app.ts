@@ -35,10 +35,28 @@ app.set('trust proxy', 1);
 // Health checking is now handled by the healthController
 
 // Middleware
+const allowedOrigins = [
+  // Production origins
+  'https://www.kicksintel.com',
+  'https://kicksintel.com',
+  // Development origins
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173'
+];
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://www.kicksintel.com', 'https://kicksintel.com']
-    : ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173'],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -133,16 +151,7 @@ app.get('/test-simple', (req, res) => {
   res.json({ message: 'Test endpoint working', timestamp: new Date().toISOString() });
 });
 
-// Debug endpoint to check environment and CORS config
-app.get('/debug-env', (req, res) => {
-  res.json({
-    NODE_ENV: process.env.NODE_ENV,
-    corsOrigins: process.env.NODE_ENV === 'production' 
-      ? ['https://www.kicksintel.com', 'https://kicksintel.com']
-      : ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173'],
-    timestamp: new Date().toISOString()
-  });
-});
+
 
 // Routes
 import authRoutes from './routes/auth';
