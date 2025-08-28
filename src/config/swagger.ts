@@ -13,7 +13,7 @@ const swaggerDefinition = {
   },
   servers: [
     {
-      url: 'https://sneakers-backend.onrender.com/api',
+      url: 'https://sneaker-server-g98q.onrender.com/api',
       description: 'Production server'
     },
     {
