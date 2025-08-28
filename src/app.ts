@@ -133,6 +133,17 @@ app.get('/test-simple', (req, res) => {
   res.json({ message: 'Test endpoint working', timestamp: new Date().toISOString() });
 });
 
+// Debug endpoint to check environment and CORS config
+app.get('/debug-env', (req, res) => {
+  res.json({
+    NODE_ENV: process.env.NODE_ENV,
+    corsOrigins: process.env.NODE_ENV === 'production' 
+      ? ['https://www.kicksintel.com', 'https://kicksintel.com']
+      : ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173'],
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Routes
 import authRoutes from './routes/auth';
 import productRoutes from './routes/products';
