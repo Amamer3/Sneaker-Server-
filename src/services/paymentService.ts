@@ -180,12 +180,34 @@ export const paymentService = {
       };
 
       // Update order with payment status
-      await ordersCollection.doc(orderId).update({
+      const updateData: any = {
         paymentStatus: status === 'success' ? 'paid' : 'failed',
         paidAmount: amount / 100, // Convert back from pesewas to GHS
         paymentDetails,
         updatedAt: new Date()
-      });
+      };
+
+      // If payment is successful, also update order status to confirmed
+      if (status === 'success') {
+        updateData.status = 'confirmed';
+      }
+
+      await ordersCollection.doc(orderId).update(updateData);
+
+      // Send order confirmation notification if payment was successful
+      if (status === 'success') {
+        try {
+          const orderDoc = await ordersCollection.doc(orderId).get();
+          if (orderDoc.exists) {
+            const order = { id: orderDoc.id, ...orderDoc.data() } as any;
+            const { NotificationService } = await import('./notificationService');
+            const notificationService = new NotificationService();
+            await notificationService.sendOrderConfirmation(order);
+          }
+        } catch (notificationError) {
+          Logger.error('Failed to send order confirmation notification:', notificationError);
+        }
+      }
 
       return {
         status: response.data.data.status,

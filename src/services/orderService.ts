@@ -125,13 +125,8 @@ export async function createOrder(order: Omit<Order, 'id' | 'createdAt' | 'updat
       ...orderDoc.data()
     } as Order;
 
-    // Send order confirmation notification
-    try {
-      const notificationService = new NotificationService();
-      await notificationService.sendOrderConfirmation(createdOrder);
-    } catch (error) {
-      console.error('Failed to send order confirmation:', error);
-    }
+    // Note: Order confirmation notification will be sent when payment is verified
+    // and order status is updated to 'confirmed'
     
     return createdOrder;
   } catch (error) {
@@ -287,13 +282,20 @@ export async function updateOrderStatus(
 
     await ordersCollection.doc(id).update(updateData);
 
-    // Send status update notification
+    // Send appropriate notification based on status
     try {
       const notificationService = new NotificationService();
       const updatedOrder = { ...order, ...updateData };
-      await notificationService.sendOrderStatusUpdate(updatedOrder);
+      
+      if (status === 'confirmed') {
+        // Send order confirmation notification for confirmed orders
+        await notificationService.sendOrderConfirmation(updatedOrder);
+      } else {
+        // Send regular status update notification for other statuses
+        await notificationService.sendOrderStatusUpdate(updatedOrder);
+      }
     } catch (error) {
-      console.error('Failed to send status update notification:', error);
+      console.error('Failed to send notification:', error);
     }
 
   } catch (error) {
