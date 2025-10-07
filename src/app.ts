@@ -12,6 +12,7 @@ dotenv.config();
 // Import routes
 import adminRoutes from './routes/admin';
 import paymentRoutes from './routes/payment';
+import couponRoutes from './routes/coupons';
 
 // Initialize Firebase and Cloudinary configs
 import './config/firebase';
@@ -219,6 +220,7 @@ console.log('🔧 All notification routes mounted successfully');
 
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/system', systemRoutes);
+app.use('/api/coupons', couponRoutes);
 // Admin dashboard routes
 app.use('/api/dashboard', dashboardRoutes);
 
