@@ -11,17 +11,17 @@
 - **GET** `/api/auth/profile`: Get the profile of the logged-in user.
 
 #### Admin Authentication & Management
-- **POST** `/api/auth/admin/login`: Admin login (Admin only).
-- **POST** `/api/auth/admin/register`: Create a new admin user (Admin only).
-- **GET** `/api/users`: Get all users with pagination and search (Admin only).
-- **DELETE** `/api/users/:id`: Delete a user (Admin only).
+- **POST** `/api/auth/admin/login`: Admin login (Admin only)
+- **POST** `/api/auth/admin/register`: Create a new admin user (Admin only)
+- **GET** `/api/users`: Get all users with pagination and search (Admin only)
+- **DELETE** `/api/users/:id`: Delete a user (Admin only)
 
 ### Product Routes
-- **GET** `/api/products`: Get all products.
+- **GET** `/api/products`: Get all products
 - **GET** `/api/products/:id`: Get a product by ID.
-- **POST** `/api/products`: Create a new product (Admin only).
-- **PUT** `/api/products/:id`: Update a product by ID (Admin only).
-- **DELETE** `/api/products/:id`: Delete a product by ID (Admin only).
+- **POST** `/api/products`: Create a new product (Admin only)
+- **PUT** `/api/products/:id`: Update a product by ID (Admin only)
+- **DELETE** `/api/products/:id`: Delete a product by ID (Admin only)
 
 ## Product Management APIs
 
