@@ -7,14 +7,15 @@
     "rootDir": "./",
     "strict": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "typeRoots": [
-      "./node_modules/@types",
-      "./src/@types"
+      "./node_modules/@types"
     ],
-    "baseUrl": "./src"
+    "baseUrl": "./src",
+    "moduleResolution": "node"
   },
   "include": [
     "src/**/*",

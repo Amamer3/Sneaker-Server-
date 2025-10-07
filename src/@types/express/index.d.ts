@@ -7,9 +7,7 @@ declare global {
         role: string;
         name?: string;
         email?: string;
-      };
+      }; 
     }
   }
 }
-
-export {};
