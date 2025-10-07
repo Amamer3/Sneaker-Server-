@@ -46,12 +46,14 @@ const allowedOrigins = [
   'http://127.0.0.1:5173'
 ];
 
-app.use(cors({
+// For development, allow all origins (remove in production)
+const isDevelopment = process.env.NODE_ENV !== 'production';
+
+// Handle preflight requests
+app.options('*', cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (isDevelopment || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -61,8 +63,30 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-content-type-options', 'x-csrf-token', 'x-xss-protection', 'x-frame-options']
 }));
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (isDevelopment || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-content-type-options', 'x-csrf-token', 'x-xss-protection', 'x-frame-options'],
+  preflightContinue: false,
+  optionsSuccessStatus: 200
+}));
 app.use(helmet({
-  contentSecurityPolicy: false 
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 app.use(morgan('combined', {
   stream: {

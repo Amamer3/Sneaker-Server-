@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 import Logger from './src/utils/logger';
 import { setSocketIO } from './src/services/websocketNotificationService';
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 
 // Create HTTP server
 const server = createServer(app);
@@ -17,7 +17,8 @@ const io = new Server(server, {
       ? (process.env.FRONTEND_URL || "https://www.kicksintel.com")
       : ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "http://127.0.0.1:5173"],
     methods: ["GET", "POST"],
-    credentials: true
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"]
   },
   path: '/ws/notifications'
 });
