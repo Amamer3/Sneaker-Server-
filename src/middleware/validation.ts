@@ -19,14 +19,6 @@ export const forgotPasswordValidation: ValidationChain[] = [
   body('email').isEmail().withMessage('Valid email required'),
 ];
 
-export const resetPasswordValidation: ValidationChain[] = [
-  body('token').notEmpty().withMessage('Reset token is required'),
-  body('newPassword')
-    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
-    .isLength({ max: 128 }).withMessage('Password too long')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/).withMessage('Password must contain at least one lowercase letter, one uppercase letter, and one number'),
-];
-
 // Adjust `validate` middleware to ensure compatibility with `RequestHandler`
 export function validate(req: Request, res: Response, next: NextFunction): void {
   const errors = validationResult(req);

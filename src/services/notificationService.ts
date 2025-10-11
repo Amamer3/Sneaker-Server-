@@ -677,7 +677,7 @@ export class NotificationService {
     total: number;
     unread: number;
     read: number;
-    byType: Record<string, number>; 
+    byType: Record<string, number>;
     recent: number;
   }> {
     try {
