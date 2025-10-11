@@ -353,6 +353,9 @@ export async function deleteProduct(id: string): Promise<boolean> {
       });
     }
 
+    // Clean up references in carts and wishlists
+    await cleanupProductReferences(id);
+
     // Delete the product from database
     await productsCollection.doc(id).delete();
     
@@ -363,6 +366,66 @@ export async function deleteProduct(id: string): Promise<boolean> {
   } catch (error) {
     console.error('Error deleting product:', error);
     throw new Error('Failed to delete product');
+  }
+}
+
+// Clean up references to a deleted product in carts and wishlists
+async function cleanupProductReferences(productId: string): Promise<void> {
+  try {
+    const { FirestoreService } = await import('../config/firebase');
+    const { COLLECTIONS } = await import('../constants/collections');
+    
+    // Clean up cart references
+    const cartsCollection = FirestoreService.collection(COLLECTIONS.CARTS);
+    const cartsSnapshot = await cartsCollection.get();
+    
+    const cartUpdatePromises: Promise<any>[] = [];
+    
+    for (const cartDoc of cartsSnapshot.docs) {
+      const cartData = cartDoc.data();
+      if (cartData.items && Array.isArray(cartData.items)) {
+        const validItems = cartData.items.filter((item: any) => item.productId !== productId);
+        
+        if (validItems.length !== cartData.items.length) {
+          cartUpdatePromises.push(
+            cartDoc.ref.update({
+              items: validItems,
+              updatedAt: new Date() 
+            })
+          );
+        }
+      }
+    }
+    
+    // Clean up wishlist references
+    const wishlistsCollection = FirestoreService.collection(COLLECTIONS.WISHLISTS);
+    const wishlistsSnapshot = await wishlistsCollection.get();
+    
+    for (const wishlistDoc of wishlistsSnapshot.docs) {
+      const wishlistData = wishlistDoc.data();
+      if (wishlistData.items && Array.isArray(wishlistData.items)) {
+        const validItems = wishlistData.items.filter((item: any) => item.productId !== productId);
+        
+        if (validItems.length !== wishlistData.items.length) {
+          cartUpdatePromises.push(
+            wishlistDoc.ref.update({
+              items: validItems,
+              updatedAt: new Date()
+            })
+          );
+        }
+      }
+    }
+    
+    // Execute all updates
+    if (cartUpdatePromises.length > 0) {
+      await Promise.allSettled(cartUpdatePromises);
+      console.log(`Cleaned up ${cartUpdatePromises.length} references to deleted product ${productId}`);
+    }
+    
+  } catch (error) {
+    console.error('Error cleaning up product references:', error);
+    // Don't throw error - product deletion should continue even if cleanup fails
   }
 }
 

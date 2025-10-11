@@ -308,15 +308,16 @@ export class CartService {
     }
   }
 
-  // Validate cart items against current inventory
+  // Validate cart items against current inventory and clean up invalid items
   async validateCartInventory(userId: string): Promise<{
     valid: boolean;
     issues: Array<{
       productId: string;
-      issue: 'out_of_stock' | 'insufficient_stock' | 'price_changed';
+      issue: 'out_of_stock' | 'insufficient_stock' | 'price_changed' | 'product_not_found';
       availableStock?: number;
       currentPrice?: number;
     }>;
+    cleanedCart?: Cart;
   }> {
     try {
       const cart = await this.getCart(userId);
@@ -325,17 +326,19 @@ export class CartService {
       }
 
       const issues: any[] = [];
+      const validItems: CartItem[] = [];
+      let cartNeedsUpdate = false;
 
       for (const item of cart.items) {
-        // Check stock availability
+        // Check if product exists
         const productDoc = await this.productsCollection.doc(item.productId).get();
         if (!productDoc.exists) {
           issues.push({
             productId: item.productId,
-            issue: 'out_of_stock',
-            availableStock: 0
+            issue: 'product_not_found'
           });
-          continue;
+          cartNeedsUpdate = true;
+          continue; // Skip this item - it will be removed
         }
 
         const productData = productDoc.data();
@@ -368,11 +371,22 @@ export class CartService {
             currentPrice
           });
         }
+
+        // If we reach here, the item is valid
+        validItems.push(item);
+      }
+
+      // Update cart if we removed invalid items
+      let cleanedCart: Cart | undefined;
+      if (cartNeedsUpdate) {
+        cleanedCart = await this.updateCart(userId, validItems);
+        console.log(`Cleaned cart for user ${userId}: removed ${cart.items.length - validItems.length} invalid items`);
       }
 
       return {
         valid: issues.length === 0,
-        issues
+        issues,
+        cleanedCart
       };
     } catch (error) {
       console.error('Error validating cart inventory:', error);

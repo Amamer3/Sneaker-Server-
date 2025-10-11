@@ -40,6 +40,12 @@ export class NotificationService {
   async createNotification(notificationData: CreateNotificationInput): Promise<Notification> {
     try {
       const now = new Date();
+      
+      // Handle broadcast notifications (userId: 'all')
+      if (notificationData.userId === 'all') {
+        return await this.createBroadcastNotification(notificationData);
+      }
+      
       const notification: Omit<Notification, 'id'> = {
         ...notificationData,
         priority: notificationData.priority || 'normal',
@@ -75,6 +81,109 @@ export class NotificationService {
     } catch (error) {
       console.error('Error creating notification:', error);
       throw new Error('Failed to create notification');
+    }
+  }
+
+  // Create broadcast notification for all users
+  private async createBroadcastNotification(notificationData: CreateNotificationInput): Promise<Notification> {
+    try {
+      // Get all users (try active users first, then fallback to all users)
+      const usersCollection = FirestoreService.collection(COLLECTIONS.USERS);
+      let usersSnapshot = await usersCollection
+        .where('isActive', '==', true)
+        .get();
+      
+      // If no active users found, get all users
+      if (usersSnapshot.empty) {
+        console.log('No active users found, getting all users for broadcast');
+        usersSnapshot = await usersCollection.get();
+      }
+      
+      const userIds = usersSnapshot.docs.map(doc => doc.id);
+      
+      if (userIds.length === 0) {
+        throw new Error('No users found for broadcast');
+      }
+      
+      console.log(`Broadcasting notification to ${userIds.length} users`);
+
+      // Create notification for each user
+      const now = new Date();
+      const promises = userIds.map(async (userId) => {
+        const notification: Omit<Notification, 'id'> = {
+          ...notificationData,
+          userId, // Set the actual user ID
+          priority: notificationData.priority || 'normal',
+          status: 'pending',
+          isRead: false,
+          retryCount: 0,
+          maxRetries: 3,
+          createdAt: now,
+          updatedAt: now
+        };
+
+        const docRef = await notificationsCollection.add(notification);
+        const createdNotification = { ...notification, id: docRef.id };
+
+        // Send real-time notification for in-app notifications
+        if (notification.channel === 'in_app') {
+          realTimeNotificationService.sendNotificationToUser(userId, createdNotification);
+          
+          // Send WebSocket notification
+          await webSocketNotificationService.sendToUser(userId, createdNotification);
+          
+          // Update unread count for this user
+          const unreadCount = await this.getUnreadCount(userId);
+          realTimeNotificationService.sendUnreadCountUpdate(userId, unreadCount);
+        }
+
+        return createdNotification;
+      });
+
+      const results = await Promise.allSettled(promises);
+      const successful = results.filter(result => result.status === 'fulfilled').length;
+      const failed = results.filter(result => result.status === 'rejected').length;
+
+      console.log(`Broadcast notification sent to ${successful} users, ${failed} failed`);
+
+      // Log any failures for debugging
+      if (failed > 0) {
+        const failures = results
+          .filter(result => result.status === 'rejected')
+          .map(result => result.status === 'rejected' ? result.reason : null)
+          .filter(Boolean);
+        console.error('Broadcast failures:', failures.slice(0, 3)); // Log first 3 failures
+      }
+
+      // Return the first successful notification as representative
+      const firstSuccess = results.find(result => result.status === 'fulfilled');
+      if (firstSuccess && firstSuccess.status === 'fulfilled') {
+        return firstSuccess.value;
+      }
+
+      // If no successful notifications, but we had users, create a fallback notification
+      if (userIds.length > 0) {
+        console.warn('All broadcast notifications failed, creating fallback notification');
+        const fallbackNotification: Omit<Notification, 'id'> = {
+          ...notificationData,
+          userId: userIds[0], // Use first user as fallback
+          priority: notificationData.priority || 'normal',
+          status: 'pending',
+          isRead: false,
+          retryCount: 0,
+          maxRetries: 3,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+
+        const docRef = await notificationsCollection.add(fallbackNotification);
+        return { ...fallbackNotification, id: docRef.id };
+      }
+
+      throw new Error('Failed to send broadcast notification to any users');
+    } catch (error) {
+      console.error('Error creating broadcast notification:', error);
+      throw new Error('Failed to create broadcast notification');
     }
   }
 
@@ -568,59 +677,53 @@ export class NotificationService {
     total: number;
     unread: number;
     read: number;
-    byType: Record<string, number>;
+    byType: Record<string, number>; 
     recent: number;
   }> {
     try {
-      // Get all notifications for user
+      // Get all notifications for user (single query to avoid index requirements)
       const allSnapshot = await notificationsCollection
         .where('userId', '==', userId)
         .get();
       
-      // Get unread notifications
-      const unreadSnapshot = await notificationsCollection
-        .where('userId', '==', userId)
-        .where('isRead', '==', false)
-        .get();
+      // Process all notifications in memory to avoid multiple queries
+      const notifications = allSnapshot.docs.map(doc => doc.data() as Notification);
       
-      // Get recent notifications (last 7 days)
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      
-      const recentSnapshot = await notificationsCollection
-        .where('userId', '==', userId)
-        .where('createdAt', '>=', sevenDaysAgo)
-        .get();
+      // Calculate stats from the single result set
+      const total = notifications.length;
+      const unread = notifications.filter(n => !n.isRead).length;
+      const read = total - unread;
       
       // Count by type
       const byType: Record<string, number> = {};
-      allSnapshot.docs.forEach((doc: any) => {
-        const data = doc.data() as Notification;
-        byType[data.type] = (byType[data.type] || 0) + 1;
+      notifications.forEach(notification => {
+        byType[notification.type] = (byType[notification.type] || 0) + 1;
       });
       
-      const total = allSnapshot.size;
-      const unread = unreadSnapshot.size;
+      // Count recent notifications (last 7 days) - filter in memory
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const recent = notifications.filter(notification => {
+        let createdAt: Date | null = null;
+        if (notification.createdAt) {
+          // Handle both Date and Firestore Timestamp
+          createdAt = notification.createdAt instanceof Date 
+            ? notification.createdAt 
+            : (notification.createdAt as any).toDate?.() || null;
+        }
+        return createdAt && createdAt >= sevenDaysAgo;
+      }).length;
       
       return {
         total,
         unread,
-        read: total - unread,
+        read,
         byType,
-        recent: recentSnapshot.size
+        recent
       };
     } catch (error) {
       console.error('Error getting notification stats:', error);
-      
-      // Check for missing index error
-      if (error instanceof Error && error.message.includes('FAILED_PRECONDITION')) {
-        const indexMessage = error.message.includes('create_composite=') 
-          ? 'Missing required index. Please wait while the index is being created.'
-          : 'Missing required index. Please contact support.';
-          
-        throw new Error(indexMessage);
-      }
-      
       throw new Error('Failed to get notification stats');
     }
   }

@@ -26,12 +26,24 @@ async function enrichCartWithProductDetails(cart: Cart | null): Promise<Enriched
     
     const products = await Promise.all(productPromises);
     
-    // Attach product details to each cart item
+    // Filter out items with non-existent products and attach product details
+    const validItems = cart.items.filter((item, index) => {
+      const product = products[index];
+      if (!product) {
+        console.log(`Removing invalid cart item: product ${item.productId} not found`);
+        return false;
+      }
+      return true;
+    });
+    
+    const validProducts = products.filter(product => product !== null);
+    
+    // Attach product details to each valid cart item
     const enrichedCart: EnrichedCart = {
       ...cart,
-      items: cart.items.map((item, index) => ({
+      items: validItems.map((item, index) => ({
         ...item,
-        product: products[index] || null
+        product: validProducts[index] || null
       }))
     };
     
@@ -115,9 +127,38 @@ export const getUserCart = async (req: AuthRequest, res: Response) => {
       }
 
       const enrichedCart = await enrichCartWithProductDetails(cart);
+      
+      if (!enrichedCart) {
+        return res.json({
+          ...emptyCart,
+          message: 'Cart is empty'
+        });
+      }
+      
+      // Check if we filtered out any invalid items
+      const originalItemCount = cart.items.length;
+      const validItemCount = enrichedCart.items.length;
+      
+      if (originalItemCount > validItemCount) {
+        // Update the cart in the database to remove invalid items
+        const validItems = enrichedCart.items.map(item => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          size: item.size,
+          price: item.price,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt
+        }));
+        
+        await cartService.updateCart(userId, validItems);
+        console.log(`Cleaned cart for user ${userId}: removed ${originalItemCount - validItemCount} invalid items`);
+      }
+
       return res.json({
         ...enrichedCart,
-        message: 'Cart retrieved successfully'
+        message: validItemCount < originalItemCount 
+          ? `Cart retrieved successfully. ${originalItemCount - validItemCount} invalid items were removed.`
+          : 'Cart retrieved successfully'
       });
 
     } catch (cartError) {

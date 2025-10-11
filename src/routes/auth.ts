@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import * as authController from '../controllers/authController';
 import { authenticateJWT, AuthRequest } from '../middleware/auth';
-import { registerValidation, loginValidation, validate } from '../middleware/validation';
+import { registerValidation, loginValidation, forgotPasswordValidation, resetPasswordValidation, validate } from '../middleware/validation';
 
 const router = Router();
  
@@ -63,6 +63,19 @@ router.post('/admin/validate-password',
 // Refresh token route
 router.post('/refresh-token', (req: Request, res: Response, next: NextFunction) => {
   authController.refreshToken(req, res, next);
+});
+
+// Password reset routes
+router.post('/forgot-password', forgotPasswordValidation, validate, (req: Request, res: Response, next: NextFunction) => {
+  authController.forgotPassword(req, res, next);
+});
+
+router.post('/reset-password', resetPasswordValidation, validate, (req: Request, res: Response, next: NextFunction) => {
+  authController.resetPassword(req, res, next);
+});
+
+router.get('/validate-reset-token/:token', (req: Request, res: Response, next: NextFunction) => {
+  authController.validateResetToken(req, res, next);
 });
 
 export default router;

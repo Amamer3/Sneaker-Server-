@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth';
 import { admin } from '../config/firebase';
 import { FirestoreService } from '../config/firebase';
 import { COLLECTIONS } from '../constants/collections';
+import { passwordResetService } from '../services/passwordResetService';
 
 const usersCollection = FirestoreService.collection(COLLECTIONS.USERS);
 
@@ -32,8 +33,19 @@ export const login = async (req: AuthRequest, res: Response, next: NextFunction)
   }
 };
 
-export const logout = async (_req: Request, res: Response): Promise<void> => {
-  res.json({ message: 'Logged out' });
+export const logout = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const { TokenBlacklistService } = await import('../services/tokenBlacklistService');
+      await TokenBlacklistService.blacklistToken(token);
+    }
+    
+    res.json({ message: 'Logged out successfully' });
+  } catch (err) {
+    next(err);
+  }
 };
 
 export const profile = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
@@ -174,6 +186,66 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
     }
 
     const result = await authService.refreshToken(refreshToken);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Password reset request
+export const forgotPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      res.status(400).json({ 
+        success: false,
+        message: 'Email is required' 
+      });
+      return;
+    }
+
+    const result = await passwordResetService.requestPasswordReset(email);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Password reset confirmation
+export const resetPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { token, newPassword } = req.body;
+    
+    if (!token || !newPassword) {
+      res.status(400).json({ 
+        success: false,
+        message: 'Token and new password are required' 
+      });
+      return;
+    }
+
+    const result = await passwordResetService.confirmPasswordReset(token, newPassword);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Validate reset token
+export const validateResetToken = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { token } = req.params;
+    
+    if (!token) {
+      res.status(400).json({ 
+        success: false,
+        message: 'Token is required' 
+      });
+      return;
+    }
+
+    const result = await passwordResetService.validateResetToken(token);
     res.json(result);
   } catch (err) {
     next(err);

@@ -106,9 +106,9 @@ export class AnalyticsService {
       Logger.error('Error calculating overview stats:', error);
       throw error;
     }
-  }
+  } 
 
-  private async calculateTotalRevenue(): Promise<number> {
+  async calculateTotalRevenue(): Promise<number> {
     try {
       const orders = await this.ordersCollection.get();
       return orders.docs.reduce((sum, doc) => {
@@ -121,7 +121,7 @@ export class AnalyticsService {
     }
   }
 
-  private async calculateTotalOrders(): Promise<number> {
+  async calculateTotalOrders(): Promise<number> {
     try {
       const snapshot = await this.ordersCollection.count().get();
       return snapshot.data().count;
@@ -131,7 +131,7 @@ export class AnalyticsService {
     }
   }
 
-  private async calculateTotalCustomers(): Promise<number> {
+  async calculateTotalCustomers(): Promise<number> {
     try {
       const snapshot = await this.usersCollection.count().get();
       return snapshot.data().count;

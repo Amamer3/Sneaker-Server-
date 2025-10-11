@@ -84,10 +84,31 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
   crossOriginEmbedderPolicy: false,
-  crossOriginOpenerPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  crossOriginOpenerPolicy: { policy: "same-origin" },
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  noSniff: true,
+  frameguard: { action: 'deny' },
+  xssFilter: true,
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" }
 }));
 app.use(morgan('combined', {
   stream: {
@@ -200,6 +221,8 @@ import systemRoutes from './routes/system';
 
 // Mount routes
 app.use('/api/auth', authRoutes);
+// Add alias for frontend compatibility
+app.use('/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/products', reviewRoutes); 
 app.use('/api/users/wishlist', wishlistRoutes);
@@ -211,7 +234,15 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/payment', paymentRoutes); 
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/health', healthRoutes);
-app.use('/api/categories', categoriesRoutes); 
+app.use('/api/categories', categoriesRoutes);
+
+// Add aliases for frontend compatibility (without /api prefix)
+app.use('/products', productRoutes);
+app.use('/users/wishlist', wishlistRoutes);
+app.use('/cart', cartRoutes);
+app.use('/orders', orderRoutes);
+app.use('/users', userRoutes);
+app.use('/categories', categoriesRoutes); 
 console.log('🔧 Mounting notification preferences routes at /api/notifications/preferences');
 app.use('/api/notifications/preferences', notificationPreferencesRoutes);
 console.log('🔧 Mounting notification routes at /api/notifications');
@@ -231,12 +262,21 @@ app.get('/', (req, res) => {
 
 // Global error handler
 import { CustomError } from './utils/helpers';
+import { logSecureError } from './utils/secureLogger';
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error(err.stack);
+  // Log error securely without exposing sensitive data
+  logSecureError(err, {
+    url: req.url,
+    method: req.method,
+    ip: req.ip,
+    userAgent: req.get('User-Agent')
+  });
+  
   if (err instanceof CustomError) {
     res.status(err.statusCode).json({ message: err.message });
   } else {
-    res.status(500).json({ message: err.message || 'Internal Server Error' });
+    // Don't expose internal error details to client
+    res.status(500).json({ message: 'Internal Server Error' });
   }
 });
 

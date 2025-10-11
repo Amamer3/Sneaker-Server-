@@ -17,7 +17,8 @@ export const COLLECTIONS = {
   COUPON_USAGE: 'coupon_usage',
   NOTIFICATIONS: 'notifications',
   NOTIFICATION_PREFERENCES: 'notification_preferences',
-  NOTIFICATION_TEMPLATES: 'notificationTemplates'
+  NOTIFICATION_TEMPLATES: 'notificationTemplates',
+  PASSWORD_RESETS: 'password_resets'
 } as const;
 
 export const SUB_COLLECTIONS = {

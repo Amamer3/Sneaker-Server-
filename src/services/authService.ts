@@ -207,16 +207,16 @@ export async function login(email: string, password: string, deviceInfo?: {
 
     await usersCollection.doc(userData.id).update(updates);
 
-    // Generate tokens
+    // Generate tokens - only include essential data
     const token = jwt.sign(
-      { id: userData.id, role: userData.role, email: userData.email, name: userData.name },
+      { id: userData.id, role: userData.role },
       process.env.JWT_SECRET!,
       { expiresIn: '24h' }
     );
-
+ 
     const refreshToken = jwt.sign(
       { id: userData.id, type: 'refresh' },
-      process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET!,
+      process.env.JWT_REFRESH_SECRET!,
       { expiresIn: '7d' }
     );
 
@@ -326,10 +326,11 @@ export async function resetPassword(token: string, newPassword: string): Promise
       updatedAt: admin.firestore.Timestamp.now().toDate()
     });
 
-    // Update Firebase Auth password
+    // Update Firebase Auth password with hashed version
     try {
+      const hashedPassword = await bcrypt.hash(newPassword, 12);
       await admin.auth().updateUser(decoded.id, {
-        password: newPassword
+        password: hashedPassword
       });
     } catch (error) {
       console.error('Failed to update Firebase Auth password:', error);
@@ -566,10 +567,11 @@ export async function changePassword(userId: string, currentPassword: string, ne
       updatedAt: admin.firestore.Timestamp.now().toDate()
     });
 
-    // Update Firebase Auth password
+    // Update Firebase Auth password with hashed version
     try {
+      const hashedPassword = await bcrypt.hash(newPassword, 12);
       await admin.auth().updateUser(userId, {
-        password: newPassword
+        password: hashedPassword
       });
     } catch (error) {
       console.error('Failed to update Firebase Auth password:', error);

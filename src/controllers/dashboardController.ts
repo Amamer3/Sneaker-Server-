@@ -32,17 +32,20 @@ interface FormattedOrder {
 
 export const getDashboardStats = async (_req: Request, res: Response) => {
   try {
-    const [overviewStats, productStats] = await Promise.all([
+    const [overviewStats, productStats, totalCustomers, totalOrders, totalRevenue] = await Promise.all([
       analyticsService.getOverviewStats(),
-      analyticsService.getProductStats()
+      analyticsService.getProductStats(),
+      analyticsService.calculateTotalCustomers(),
+      analyticsService.calculateTotalOrders(),
+      analyticsService.calculateTotalRevenue()
     ]);
 
     // Format stats according to frontend expectations
     const stats: DashboardStats = {
-      totalRevenue: overviewStats.totalRevenue,
-      totalOrders: overviewStats.totalOrders,
+      totalRevenue: totalRevenue || overviewStats.totalRevenue,
+      totalOrders: totalOrders || overviewStats.totalOrders,
       totalProducts: productStats.totalProducts,
-      totalCustomers: overviewStats.totalCustomers,
+      totalCustomers: totalCustomers || overviewStats.totalCustomers,
       revenueGrowth: `${overviewStats.percentageChanges.revenue}%`,
       ordersGrowth: `${overviewStats.percentageChanges.orders}%`,
       productsGrowth: '0%', // We don't track product growth yet
