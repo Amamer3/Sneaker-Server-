@@ -19,13 +19,14 @@ const OPTIONAL_ENV_VARS = [
   { name: 'REDIS_URL', default: '' },
   { name: 'PAYSTACK_SECRET_KEY', default: '' },
   { name: 'PAYSTACK_PUBLIC_KEY', default: '' },
-  { name: 'JWT_REFRESH_SECRET', default: '' } // Will be generated if empty
+  { name: 'JWT_REFRESH_SECRET', default: '' }
 ];
 
 // Validate environment variables
 export const validateEnvironment = (): void => {
   const missingVars: string[] = [];
   const invalidVars: string[] = [];
+  const isProduction = process.env.NODE_ENV === 'production';
 
   // Check required variables
   REQUIRED_ENV_VARS.forEach(varName => {
@@ -34,14 +35,17 @@ export const validateEnvironment = (): void => {
     }
   });
 
+  if (isProduction && !process.env.JWT_REFRESH_SECRET) {
+    missingVars.push('JWT_REFRESH_SECRET');
+  }
+
   // Check optional variables and set defaults
   OPTIONAL_ENV_VARS.forEach(({ name, default: defaultValue }) => {
     if (!process.env[name]) {
-      if (name === 'JWT_REFRESH_SECRET' && defaultValue === '') {
-        // Generate a secure refresh secret if not provided
+      if (name === 'JWT_REFRESH_SECRET' && defaultValue === '' && !isProduction) {
         process.env[name] = generateSecureSecret(64);
-        console.log(`🔐 Generated JWT_REFRESH_SECRET (${name} was not provided)`);
-      } else {
+        console.log(`Generated JWT_REFRESH_SECRET (${name} was not provided; dev only)`);
+      } else if (!(name === 'JWT_REFRESH_SECRET' && isProduction)) {
         process.env[name] = defaultValue;
       }
     }

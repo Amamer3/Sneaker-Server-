@@ -5,11 +5,13 @@ import jwt from 'jsonwebtoken';
 import Logger from './src/utils/logger';
 import { setSocketIO } from './src/services/websocketNotificationService';
 import { validateEnvironment } from './src/utils/envValidator';
+import { getSocketCorsOrigin } from './src/config/corsOrigins';
 
 // Validate environment variables before starting
 validateEnvironment();
 
 const PORT = process.env.PORT || 5000;
+const SHUTDOWN_TIMEOUT_MS = 25_000;
 
 // Create HTTP server
 const server = createServer(app);
@@ -17,9 +19,7 @@ const server = createServer(app);
 // Create Socket.IO server
 const io = new Server(server, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' 
-      ? (process.env.FRONTEND_URL || "https://www.kicksintel.com")
-      : ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "http://127.0.0.1:5173"],
+    origin: getSocketCorsOrigin(),
     methods: ["GET", "POST"],
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"]
@@ -104,9 +104,41 @@ io.on('connection', (socket) => {
 // io is already exported above
 
 server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`WebSocket server available at ws://localhost:${PORT}/socket.io/`);
-}); // CORS configuration updated
+  Logger.info(`HTTP server listening on port ${PORT}`);
+  if (process.env.NODE_ENV !== 'production') {
+    Logger.info(`WebSocket server path /socket.io/ (dev)`);
+  }
+});
+
+function gracefulShutdown(signal: string): void {
+  Logger.info(`${signal} received, shutting down gracefully`);
+  server.close((closeErr) => {
+    if (closeErr) {
+      Logger.error('Error while closing HTTP server', closeErr);
+    }
+    io.close(() => {
+      Logger.info('Socket.IO server closed');
+      process.exit(closeErr ? 1 : 0);
+    });
+  });
+  setTimeout(() => {
+    Logger.error(`Forced exit after ${SHUTDOWN_TIMEOUT_MS}ms shutdown timeout`);
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS).unref();
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+process.on('unhandledRejection', (reason) => {
+  const detail = reason instanceof Error ? reason.stack : String(reason);
+  Logger.error(`Unhandled promise rejection: ${detail}`);
+});
+
+process.on('uncaughtException', (err) => {
+  Logger.error('Uncaught exception', err);
+  process.exit(1);
+});
 
 // Extend Socket interface to include userId
 declare module 'socket.io' {

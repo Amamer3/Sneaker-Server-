@@ -22,13 +22,9 @@ import './config/cloudinary';
 // import redis from './config/redis';
 import Logger from './utils/logger';
 import { FirestoreService } from './utils/firestore';
+import { getAllowedCorsOrigins } from './config/corsOrigins';
 
 const app = express();
-
-// Simple test endpoint before any middleware
-app.get('/simple-test', (req, res) => {
-  res.json({ message: 'Simple test working', timestamp: new Date().toISOString() });
-});
 
 // Trust proxy - required when behind a reverse proxy like Render
 app.set('trust proxy', 1);
@@ -36,16 +32,7 @@ app.set('trust proxy', 1);
 // Health checking is now handled by the healthController
 
 // Middleware
-const allowedOrigins = [
-  // Production origins
-  'https://www.kicksintel.com',
-  'https://kicksintel.com',
-  // Development origins
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://127.0.0.1:3000',
-  'http://127.0.0.1:5173'
-];
+const allowedOrigins = getAllowedCorsOrigins();
 
 // For development, allow all origins (remove in production)
 const isDevelopment = process.env.NODE_ENV !== 'production';
@@ -57,6 +44,7 @@ app.options('*', cors({
     if (isDevelopment || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
+      Logger.warn(`CORS blocked origin: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -73,7 +61,7 @@ app.use(cors({
     if (isDevelopment || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      console.log('CORS blocked origin:', origin);
+      Logger.warn(`CORS blocked origin: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -127,9 +115,11 @@ app.use((req, res, next) => {
 
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Global request logging
+// Global request logging (verbose; dev / debug only)
 app.use((req, res, next) => {
-  console.log(`🌐 Global: ${req.method} ${req.url} - Original URL: ${req.originalUrl}`);
+  if (isDevelopment) {
+    Logger.debug(`Global: ${req.method} ${req.url} — original: ${req.originalUrl}`);
+  }
   next();
 });
 
@@ -184,7 +174,7 @@ app.use((req, res, next) => {
 
 // Basic root endpoint
 app.get('/', (req, res) => {
-  res.json({ message: 'Sneakers Store API' });
+  res.json({ message: 'Sneaker Store API', status: 'running' });
 });
 
 // Test notification service endpoint (no auth required) - temporarily disabled
@@ -192,10 +182,14 @@ app.get('/', (req, res) => {
 //   res.json({ message: 'Test endpoint temporarily disabled' });
 // });
 
-// Test simple endpoint (no auth required)
-app.get('/test-simple', (req, res) => {
-  res.json({ message: 'Test endpoint working', timestamp: new Date().toISOString() });
-});
+if (isDevelopment) {
+  app.get('/simple-test', (req, res) => {
+    res.json({ message: 'Simple test working', timestamp: new Date().toISOString() });
+  });
+  app.get('/test-simple', (req, res) => {
+    res.json({ message: 'Test endpoint working', timestamp: new Date().toISOString() });
+  });
+}
 
 
 
@@ -242,23 +236,17 @@ app.use('/users/wishlist', wishlistRoutes);
 app.use('/cart', cartRoutes);
 app.use('/orders', orderRoutes);
 app.use('/users', userRoutes);
-app.use('/categories', categoriesRoutes); 
-console.log('🔧 Mounting notification preferences routes at /api/notifications/preferences');
+app.use('/categories', categoriesRoutes);
+Logger.debug('Mounted notification preferences at /api/notifications/preferences');
 app.use('/api/notifications/preferences', notificationPreferencesRoutes);
-console.log('🔧 Mounting notification routes at /api/notifications');
+Logger.debug('Mounted notification routes at /api/notifications');
 app.use('/api/notifications', notificationRoutes);
-console.log('🔧 All notification routes mounted successfully');
 
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/system', systemRoutes);
 app.use('/api/coupons', couponRoutes);
 // Admin dashboard routes
 app.use('/api/dashboard', dashboardRoutes);
-
-// Health check route
-app.get('/', (req, res) => {
-  res.json({ message: 'Sneaker Store API is running.' });
-});
 
 // Global error handler
 import { CustomError } from './utils/helpers';

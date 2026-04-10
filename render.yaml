@@ -1,9 +1,16 @@
+# Blueprint reference: https://render.com/docs/blueprint-spec
 services:
   - type: web
     name: sneakers-backend
-    env: node
+    runtime: node
     buildCommand: npm ci && npm run build
     startCommand: npm start
+    healthCheckPath: /api/health/live
+    maxShutdownDelaySeconds: 90
+    scaling:
+      minInstances: 1
+      maxInstances: 3
+      targetCPUPercent: 70
     envVars:
       - key: NODE_VERSION
         value: 18.16.0
@@ -17,12 +24,21 @@ services:
         value: "300"
       - key: ANALYTICS_MAX_BATCH_SIZE
         value: "1000"
-      # Add your secret environment variables in the Render dashboard
       - key: JWT_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: CORS_ORIGINS
         sync: false
       - key: REDIS_URL
         sync: false
       - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
         sync: false
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
@@ -34,17 +50,4 @@ services:
       name: logs
       mountPath: /app/logs
       sizeGB: 1
-    healthCheck:
-      path: /api/health
-      port: 3000
-      interval: 30s
-      timeout: 10s
-      gracePeriod: 300s
     autoDeploy: true
-    numInstances:
-      min: 1
-      max: 3
-      targetCPUPercent: 70
-    metrics:
-      - port: 3000
-        path: /api/metrics

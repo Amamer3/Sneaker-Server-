@@ -230,7 +230,7 @@ export const forgotPassword = async (req: Request, res: Response, next: NextFunc
     try {
       // Generate password reset link using Firebase Admin SDK
       const resetLink = await admin.auth().generatePasswordResetLink(email, {
-        url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password`,
+        url: `${process.env.FRONTEND_URL || 'http://127.0.0.1:5173'}/reset-password`,
         handleCodeInApp: false
       });
 
