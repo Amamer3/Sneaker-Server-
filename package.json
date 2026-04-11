@@ -11,11 +11,12 @@
     "deploy:firestore": "node deploy-firestore-rules.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "@scalar/express-api-reference": "^0.8.12",
     "@types/axios": "^0.9.36",
+    "@types/express": "^4.17.17",
     "@types/socket.io": "^3.0.1",
     "@types/winston": "^2.4.4",
     "axios": "^1.9.0",
@@ -35,25 +36,25 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^2.0.0",
+    "resend": "^6.10.0",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "swagger-jsdoc": "^6.2.8",
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0",
-    "zod": "^3.25.50",
-    "@types/express": "^4.17.17"
+    "zod": "^3.25.50"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.18",
     "@types/ioredis": "^4.28.10",
+    "@types/jest": "^29.5.14",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/morgan": "^1.9.9",
     "@types/multer": "^1.4.12",
     "@types/node": "^22.15.29",
     "@types/swagger-jsdoc": "^6.0.4",
-    "@types/jest": "^29.5.14",
     "jest": "^29.7.0",
     "nodemon": "^3.1.10",
     "ts-jest": "^29.3.4",

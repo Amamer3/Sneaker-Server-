@@ -11,6 +11,14 @@ import { admin } from '../config/firebase';
 import { COLLECTIONS } from '../constants/collections';
 import { realTimeNotificationService } from './realTimeNotificationService';
 import { webSocketNotificationService } from './websocketNotificationService';
+import Logger from '../utils/logger';
+import {
+  sendEmailVerificationEmail,
+  sendJwtPasswordResetEmail,
+  sendOrderCancelledEmail,
+  sendOrderConfirmationEmail,
+  sendWelcomeEmail,
+} from './emailService';
 
 const notificationsCollection = FirestoreService.collection(COLLECTIONS.NOTIFICATIONS);
 const preferencesCollection = FirestoreService.collection(COLLECTIONS.NOTIFICATION_PREFERENCES);
@@ -328,6 +336,12 @@ export class NotificationService {
     };
 
     await this.createNotification(notification);
+
+    try {
+      await sendOrderConfirmationEmail(order);
+    } catch (err) {
+      Logger.error('Order confirmation email failed', err);
+    }
   }
 
   // Send order cancellation notification
@@ -343,6 +357,12 @@ export class NotificationService {
     };
 
     await this.createNotification(notification);
+
+    try {
+      await sendOrderCancelledEmail(order, reason);
+    } catch (err) {
+      Logger.error('Order cancellation email failed', err);
+    }
   }
 
   // Send order update notification
@@ -403,6 +423,12 @@ export class NotificationService {
     };
 
     await this.createNotification(notification);
+
+    try {
+      await sendWelcomeEmail(user.email, user.name);
+    } catch (err) {
+      Logger.error('Welcome email failed', err);
+    }
   }
 
   // Send password reset notification
@@ -418,6 +444,12 @@ export class NotificationService {
     };
 
     await this.createNotification(notification);
+
+    try {
+      await sendJwtPasswordResetEmail(user.email, user.name, resetToken);
+    } catch (err) {
+      Logger.error('Password reset email failed', err);
+    }
   }
 
   // Send email verification notification
@@ -433,6 +465,12 @@ export class NotificationService {
     };
 
     await this.createNotification(notification);
+
+    try {
+      await sendEmailVerificationEmail(user.email, user.name, verificationToken);
+    } catch (err) {
+      Logger.error('Verification email failed', err);
+    }
   }
 
   // Send promotional notification

@@ -1,6 +1,7 @@
 import * as bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import jwt, { JsonWebTokenError, TokenExpiredError } from 'jsonwebtoken';
 import { admin } from '../config/firebase';
+import { CustomError } from '../utils/helpers';
 import { User, UserProfile, UserPreferences, UserAnalytics } from '../models/User';
 import { FirestoreService } from '../config/firebase';
 import { COLLECTIONS } from '../constants/collections';
@@ -297,56 +298,62 @@ export async function requestPasswordReset(email: string): Promise<{ message: st
 }
 
 export async function resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
-  try {
-    // Verify reset token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-    
-    if (decoded.type !== 'password_reset') {
-      throw new Error('Invalid reset token');
-    }
-
-    // Validate new password
-    if (!newPassword || newPassword.length < 8) {
-      throw new Error('Password must be at least 8 characters long');
-    }
-
-    const userDoc = await usersCollection.doc(decoded.id).get();
-    if (!userDoc.exists) {
-      throw new Error('User not found');
-    }
-
-    const userData = userDoc.data() as User;
-
-    // Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, 12);
-
-    // Update password
-    await usersCollection.doc(decoded.id).update({
-      password: hashedPassword,
-      updatedAt: admin.firestore.Timestamp.now().toDate()
-    });
-
-    // Update Firebase Auth password with hashed version
-    try {
-      const hashedPassword = await bcrypt.hash(newPassword, 12);
-      await admin.auth().updateUser(decoded.id, {
-        password: hashedPassword
-      });
-    } catch (error) {
-      console.error('Failed to update Firebase Auth password:', error);
-    }
-
-    // Log password change
-    await logLoginActivity(decoded.id, 'password_reset');
-
-    return { message: 'Password has been reset successfully' };
-  } catch (error) {
-    console.error('Password reset error:', error);
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error('Failed to reset password');
+  if (!token || typeof token !== 'string' || token.length > 4096) {
+    throw new CustomError('Invalid or expired reset link', 400);
   }
+  if (!newPassword || newPassword.length < 8 || newPassword.length > 128) {
+    throw new CustomError('Password must be between 8 and 128 characters', 400);
+  }
+  if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(newPassword)) {
+    throw new CustomError(
+      'Password must contain at least one lowercase letter, one uppercase letter, and one number',
+      400
+    );
+  }
+
+  let decoded: jwt.JwtPayload & { id?: string; type?: string };
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET!) as jwt.JwtPayload & { id?: string; type?: string };
+  } catch (e) {
+    if (e instanceof JsonWebTokenError || e instanceof TokenExpiredError) {
+      throw new CustomError('Invalid or expired reset link', 400);
+    }
+    throw e;
+  }
+
+  if (decoded.type !== 'password_reset' || typeof decoded.id !== 'string' || !decoded.id) {
+    throw new CustomError('Invalid or expired reset link', 400);
+  }
+
+  const userDoc = await usersCollection.doc(decoded.id).get();
+  if (!userDoc.exists) {
+    throw new CustomError('Invalid or expired reset link', 400);
+  }
+
+  const userData = userDoc.data() as User;
+
+  if (userData.password && (await bcrypt.compare(newPassword, userData.password))) {
+    throw new CustomError('Choose a new password that you have not used before', 400);
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+  await usersCollection.doc(decoded.id).update({
+    password: hashedPassword,
+    updatedAt: admin.firestore.Timestamp.now().toDate(),
+  });
+
+  try {
+    await admin.auth().updateUser(decoded.id, {
+      password: newPassword,
+    });
+  } catch (error) {
+    console.error('Failed to update Firebase Auth password:', error);
+  }
+
+  await logLoginActivity(decoded.id, 'password_reset');
+
+  return { message: 'Password has been reset successfully' };
 }
 
 // Email Verification Functions
@@ -391,48 +398,49 @@ export async function sendEmailVerification(userId: string): Promise<{ message: 
 }
 
 export async function verifyEmail(token: string): Promise<{ message: string }> {
-  try {
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-    
-    if (decoded.type !== 'email_verification') {
-      throw new Error('Invalid verification token');
-    }
-
-    const userDoc = await usersCollection.doc(decoded.id).get();
-    if (!userDoc.exists) {
-      throw new Error('User not found');
-    }
-
-    const userData = userDoc.data() as User;
-    
-    if (userData.isEmailVerified) {
-      return { message: 'Email is already verified' };
-    }
-
-    // Update user as verified
-    await usersCollection.doc(decoded.id).update({
-      isEmailVerified: true,
-      updatedAt: admin.firestore.Timestamp.now().toDate()
-    });
-
-    // Update Firebase Auth
-    try {
-      await admin.auth().updateUser(decoded.id, {
-        emailVerified: true
-      });
-    } catch (error) {
-      console.error('Failed to update Firebase Auth email verification:', error);
-    }
-
-    return { message: 'Email verified successfully' };
-  } catch (error) {
-    console.error('Email verification error:', error);
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error('Failed to verify email');
+  if (!token || typeof token !== 'string' || token.length > 4096) {
+    throw new CustomError('Invalid or expired verification link', 400);
   }
+
+  let decoded: jwt.JwtPayload & { id?: string; type?: string };
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET!) as jwt.JwtPayload & { id?: string; type?: string };
+  } catch (e) {
+    if (e instanceof JsonWebTokenError || e instanceof TokenExpiredError) {
+      throw new CustomError('Invalid or expired verification link', 400);
+    }
+    throw e;
+  }
+
+  if (decoded.type !== 'email_verification' || typeof decoded.id !== 'string' || !decoded.id) {
+    throw new CustomError('Invalid or expired verification link', 400);
+  }
+
+  const userDoc = await usersCollection.doc(decoded.id).get();
+  if (!userDoc.exists) {
+    throw new CustomError('Invalid or expired verification link', 400);
+  }
+
+  const userData = userDoc.data() as User;
+
+  if (userData.isEmailVerified) {
+    return { message: 'Email is already verified' };
+  }
+
+  await usersCollection.doc(decoded.id).update({
+    isEmailVerified: true,
+    updatedAt: admin.firestore.Timestamp.now().toDate(),
+  });
+
+  try {
+    await admin.auth().updateUser(decoded.id, {
+      emailVerified: true,
+    });
+  } catch (error) {
+    console.error('Failed to update Firebase Auth email verification:', error);
+  }
+
+  return { message: 'Email verified successfully' };
 }
 
 // Token Management

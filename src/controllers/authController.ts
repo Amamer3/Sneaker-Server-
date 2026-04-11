@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth';
 import { admin } from '../config/firebase';
 import { FirestoreService } from '../config/firebase';
 import { COLLECTIONS } from '../constants/collections';
+import { isEmailSendingConfigured, sendFirebasePasswordResetEmail } from '../services/emailService';
 
 const usersCollection = FirestoreService.collection(COLLECTIONS.USERS);
 
@@ -191,78 +192,89 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
   }
 };
 
-// Firebase Password Reset Request
+const PASSWORD_RESET_GENERIC_MESSAGE =
+  'If an account exists for this email, you will receive reset instructions shortly.';
+
+// Firebase password reset request (uniform response to reduce account enumeration)
 export const forgotPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { email } = req.body;
-    
-    if (!email) {
-      res.status(400).json({ 
-        success: false,
-        message: 'Email is required' 
-      });
-      return;
-    }
+    const email = String(req.body.email ?? '').trim();
 
-    // Check if user exists in Firestore first
     const userSnap = await usersCollection.where('email', '==', email).get();
     if (userSnap.empty) {
-      // Email doesn't exist in our system
-      res.status(404).json({
-        success: false,
-        message: 'No account found with that email address.'
-      });
+      res.json({ success: true, message: PASSWORD_RESET_GENERIC_MESSAGE });
       return;
     }
 
     const userData = userSnap.docs[0].data();
-    const userId = userSnap.docs[0].id;
-
-    // Check if user account is active
     if (userData.status !== 'active') {
-      res.status(403).json({
-        success: false,
-        message: 'Account is not active. Please contact support.'
-      });
+      res.json({ success: true, message: PASSWORD_RESET_GENERIC_MESSAGE });
       return;
     }
 
     try {
-      // Generate password reset link using Firebase Admin SDK
       const resetLink = await admin.auth().generatePasswordResetLink(email, {
         url: `${process.env.FRONTEND_URL || 'http://127.0.0.1:5173'}/reset-password`,
-        handleCodeInApp: false
+        handleCodeInApp: false,
       });
 
-      console.log(`Password reset link generated for ${email}: ${resetLink}`);
-
-      // TODO: Send email using your email service (SendGrid, AWS SES, etc.)
-      // For now, we'll just log the link for development
-      console.log(`📧 Password reset email should be sent to: ${email}`);
-      console.log(`🔗 Reset link: ${resetLink}`);
-
-      res.json({
-        success: true,
-        message: 'Password reset link has been sent to your email address.',
-        // In development, include the reset link for testing
-        ...(process.env.NODE_ENV === 'development' && { resetLink })
-      });
-
-    } catch (firebaseError: any) {
-      console.error('Firebase password reset error:', firebaseError);
-      
-      // Handle specific Firebase errors
-      if (firebaseError.code === 'auth/user-not-found') {
-        res.status(404).json({
+      if (isEmailSendingConfigured()) {
+        try {
+          await sendFirebasePasswordResetEmail(email, resetLink);
+        } catch (sendErr) {
+          console.error('Resend password reset failed:', sendErr);
+          res.status(503).json({
+            success: false,
+            message: 'Could not send the reset email. Please try again later.',
+          });
+          return;
+        }
+      } else if (process.env.NODE_ENV === 'production') {
+        res.status(503).json({
           success: false,
-          message: 'No account found with that email address.'
+          message: 'Password reset email is not available. Please contact support.',
         });
         return;
       }
 
-      throw new Error('Failed to generate password reset link');
+      res.json({
+        success: true,
+        message: PASSWORD_RESET_GENERIC_MESSAGE,
+        ...(process.env.NODE_ENV === 'development' && { resetLink }),
+      });
+    } catch (firebaseError: unknown) {
+      console.error('Firebase password reset error:', firebaseError);
+      // Do not distinguish auth/user-not-found from other failures (enumeration / drift)
+      res.json({ success: true, message: PASSWORD_RESET_GENERIC_MESSAGE });
     }
+  } catch (err) {
+    next(err);
+  }
+};
 
+export const resetPasswordWithToken = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { token, password } = req.body as { token: string; password: string };
+    const result = await authService.resetPassword(token, password);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const verifyEmailWithToken = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { token } = req.body as { token: string };
+    const result = await authService.verifyEmail(token);
+    res.json({ success: true, ...result });
   } catch (err) {
     next(err);
   }

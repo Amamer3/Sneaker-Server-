@@ -13,7 +13,7 @@ services:
       targetCPUPercent: 70
     envVars:
       - key: NODE_VERSION
-        value: 18.16.0
+        value: 20.18.0
       - key: NODE_ENV
         value: production
       - key: NODE_OPTIONS
@@ -45,6 +45,12 @@ services:
       - key: CLOUDINARY_API_KEY
         sync: false
       - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
+      - key: RESEND_REPLY_TO
         sync: false
     disk:
       name: logs

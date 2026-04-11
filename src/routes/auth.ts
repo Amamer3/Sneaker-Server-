@@ -1,7 +1,19 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import * as authController from '../controllers/authController';
 import { authenticateJWT, AuthRequest } from '../middleware/auth';
-import { registerValidation, loginValidation, forgotPasswordValidation, validate } from '../middleware/validation';
+import {
+  registerValidation,
+  loginValidation,
+  forgotPasswordValidation,
+  resetPasswordWithTokenValidation,
+  verifyEmailTokenValidation,
+  validate,
+} from '../middleware/validation';
+import {
+  forgotPasswordEmailRateLimit,
+  forgotPasswordIpRateLimit,
+  resetPasswordWithTokenIpRateLimit,
+} from '../middleware/passwordResetRateLimit';
 
 const router = Router();
  
@@ -65,9 +77,37 @@ router.post('/refresh-token', (req: Request, res: Response, next: NextFunction) 
   authController.refreshToken(req, res, next);
 });
 
-// Firebase Password Reset route
-router.post('/forgot-password', forgotPasswordValidation, validate, (req: Request, res: Response, next: NextFunction) => {
-  authController.forgotPassword(req, res, next);
-});
+// Password reset: request link (Firebase email link flow)
+router.post(
+  '/forgot-password',
+  forgotPasswordIpRateLimit,
+  forgotPasswordValidation,
+  validate,
+  forgotPasswordEmailRateLimit,
+  (req: Request, res: Response, next: NextFunction) => {
+    authController.forgotPassword(req, res, next);
+  }
+);
+
+// Password reset: submit new password (JWT from custom email link)
+router.post(
+  '/reset-password',
+  resetPasswordWithTokenIpRateLimit,
+  resetPasswordWithTokenValidation,
+  validate,
+  (req: Request, res: Response, next: NextFunction) => {
+    authController.resetPasswordWithToken(req, res, next);
+  }
+);
+
+// Email verification (JWT from Resend link → frontend loads ?token= then POSTs here)
+router.post(
+  '/verify-email',
+  verifyEmailTokenValidation,
+  validate,
+  (req: Request, res: Response, next: NextFunction) => {
+    authController.verifyEmailWithToken(req, res, next);
+  }
+);
 
 export default router;
